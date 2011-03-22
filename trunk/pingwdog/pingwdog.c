@@ -3,10 +3,6 @@
     Authors: 
     Denys Fedoryshchenko aka NuclearCat <nuclearcat (at) nuclearcat.com>
 
-    TODO: 
-	Precise interval, count select waiting time
-	Verify ping reply packets
-
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -289,9 +285,8 @@ int main(int argc,char **argv)
     }
 
     
-    //daemon(0,1);
+    daemon(0,1);
     while(1) {
-	printf("cycle\n");
 	if (!ping4(dsthost,timeout))
 	    cnt++;
 	else
