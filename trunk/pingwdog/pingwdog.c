@@ -92,7 +92,7 @@ long timevaldiff(struct timeval *starttime, struct timeval *finishtime)
 }
 
 
-static int ping4(char *dsthost, long maxdelay)
+static int ping4(char *dsthost, long maxdelay, char *bindaddr)
 {
 	int s,retval,icmp_len,rcvd,seq,stilldelay = maxdelay;
 	int on = 1;
@@ -113,10 +113,27 @@ static int ping4(char *dsthost, long maxdelay)
 	memset(icmp,0x0,sizeof(struct icmp));
 
 
+
        if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
                 perror("socket");
                 exit(1);
         }
+	if (bindaddr != NULL) {
+	    struct sockaddr_in serv_addr;
+	    serv_addr.sin_family = AF_INET;
+	    if (!inet_pton(AF_INET, bindaddr, (struct in_addr *)&serv_addr.sin_addr.s_addr)) {
+		perror("bind address invalid");
+		exit(-1);
+	    }
+	    serv_addr.sin_port = 0;
+	    if (bind(s, (struct sockaddr *) &serv_addr,
+		    sizeof(serv_addr)) < 0)
+	    {
+		perror("bind error");
+		exit(-1);
+	    }
+	}
+
         if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0) {
                 perror("IP_HDRINCL");
                 exit(1);
@@ -197,7 +214,7 @@ static int ping4(char *dsthost, long maxdelay)
 int main(int argc,char **argv)
 {
   int interval = 5, maxfail = 5,gracetime = 60,timeout=1000;
-  char *onfail = NULL,*onrestore = NULL,*dsthost=NULL;
+  char *onfail = NULL,*onrestore = NULL,*dsthost=NULL,*bindaddr=NULL;
   int len,c,cnt = 0,fail = 0;
 
   while (1)
@@ -214,13 +231,14 @@ int main(int argc,char **argv)
                {"gracetime",  required_argument, 0, 'g'},
                {"onfail",  required_argument, 0, 'f'},
                {"onrestore",  required_argument, 0, 'r'},
+               {"bind",  required_argument, 0, 'b'},
                {"help",  no_argument, 0, 'h'},
                {0, 0, 0, 0}
              };
            /* getopt_long stores the option index here. */
 	    int option_index = 0;
      
-	    c = getopt_long (argc, argv, "d:b:p:g:f:r:h", long_options, &option_index);
+	    c = getopt_long (argc, argv, "d:b:p:g:f:r:h:b", long_options, &option_index);
           /* Detect the end of the options. */
            if (c == -1)
              break;
@@ -243,6 +261,12 @@ int main(int argc,char **argv)
 		timeout = atoi(optarg);
                break;
      
+             case 'b':
+		len = strlen(optarg) + 1;
+		bindaddr = malloc(len);
+		strncpy(bindaddr,optarg,len);
+               break;
+
              case 'f':
 		len = strlen(optarg) + 1;
 		onfail = malloc(len);
@@ -270,6 +294,7 @@ int main(int argc,char **argv)
 		printf("--gracetime 	- Delay before script start actually monitoring (e.g. STP on switches takes up to 60 sec), default 60 sec\n");
 		printf("--onfail 	- Script to run on failure\n");
 		printf("--onrestore 	- Script to run on restore\n");
+		printf("--bind	 	- Bind to IP\n");
                /* getopt_long already printed an error message. */
 		exit(1);
                break;
@@ -287,7 +312,7 @@ int main(int argc,char **argv)
     
     daemon(0,1);
     while(1) {
-	if (!ping4(dsthost,timeout))
+	if (!ping4(dsthost,timeout,bindaddr))
 	    cnt++;
 	else
 	    cnt = 0;
