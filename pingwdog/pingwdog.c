@@ -186,6 +186,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr)
 		if (rcvd >= ( 8 + ip->ip_hl * 4)) {
 		    //printf("Got something %d == %d\n",icmp->icmp_hun.ih_idseq.icd_seq,seq);
 		    if (icmp->icmp_type == ICMP_ECHOREPLY && !memcmp(&src,&dst,dstsize) && icmp->icmp_hun.ih_idseq.icd_id == getpid() && icmp->icmp_hun.ih_idseq.icd_seq == seq) {
+			close(s);
 			return(1);
 		    }
 		} 
@@ -197,6 +198,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr)
 
 	    if (retval != 1 && timediff >= maxdelay) {
 		//printf("Expired\n");
+		close(s);
 		return(0);
 	    } else {
 		stilldelay -= timediff;
