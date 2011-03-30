@@ -213,9 +213,9 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr)
 
 int main(int argc,char **argv)
 {
-  int interval = 5, maxfail = 5,gracetime = 60,timeout=1000;
+  int interval = 5, maxfail = 5,gracetime = 60,timeout=1000,num=1,maxloss=1;
   char *onfail = NULL,*onrestore = NULL,*dsthost=NULL,*bindaddr=NULL;
-  int len,c,cnt = 0,fail = 0;
+  int len,c,cntbatchfails = 0,failtrigger = 0,failcount = 0,i,background=1;
 
   while (1)
          {
@@ -227,18 +227,21 @@ int main(int argc,char **argv)
                {"dst",  required_argument, 0, 'd'},
                {"interval",  required_argument, 0, 'i'},
                {"timeout",  required_argument, 0, 't'},
+               {"num",  required_argument, 0, 'n'},
+               {"loss",  required_argument, 0, 'l'},
                {"maxfail",  required_argument, 0, 'm'},
                {"gracetime",  required_argument, 0, 'g'},
                {"onfail",  required_argument, 0, 'f'},
                {"onrestore",  required_argument, 0, 'r'},
                {"bind",  required_argument, 0, 'b'},
+               {"foreground",  no_argument, 0, '1'},
                {"help",  no_argument, 0, 'h'},
                {0, 0, 0, 0}
              };
            /* getopt_long stores the option index here. */
 	    int option_index = 0;
      
-	    c = getopt_long (argc, argv, "d:b:p:g:f:r:h:b", long_options, &option_index);
+	    c = getopt_long (argc, argv, "d:b:p:g:f:r:h:b:n:l", long_options, &option_index);
           /* Detect the end of the options. */
            if (c == -1)
              break;
@@ -259,6 +262,14 @@ int main(int argc,char **argv)
 
              case 't':
 		timeout = atoi(optarg);
+               break;
+
+             case 'n':
+		num = atoi(optarg);
+               break;
+
+             case 'l':
+		maxloss = atoi(optarg);
                break;
      
              case 'b':
@@ -284,12 +295,18 @@ int main(int argc,char **argv)
 		dsthost = malloc(len);
 		strncpy(dsthost,optarg,len);
                break;
+
+             case '1':
+		background = 0;
+               break;
      
              case 'h':
 		printf("Available options:\n");
 		printf("--dst 		- Destination host\n");
 		printf("--interval 	- Interval between pings (seconds)\n");
-		printf("--maxfail 	- How much pings need to fail in row to trigger FAIL state\n");
+		printf("--num 		- Number of pings\n");
+		printf("--loss		- If more or equal than this ping failed in batch (%% loss), consider batch as FAIL\n");
+		printf("--maxfail 	- How much batches need to fail in row to trigger FAIL state\n");
 		printf("--timeout 	- Ping timeout (milliseconds)\n");
 		printf("--gracetime 	- Delay before script start actually monitoring (e.g. STP on switches takes up to 60 sec), default 60 sec\n");
 		printf("--onfail 	- Script to run on failure\n");
@@ -306,25 +323,33 @@ int main(int argc,char **argv)
 
     if ((onfail == NULL && onrestore == NULL) || dsthost == NULL) {
 	printf("Please specify at least onfail or onrestore script, also dst must be specified\n");
+	printf("Try %s --help\n",argv[0]);
 	exit(1);
     }
 
-    
-    daemon(0,1);
+    if (background)
+	daemon(0,1);
     while(1) {
-	if (!ping4(dsthost,timeout,bindaddr))
-	    cnt++;
-	else
-	    cnt = 0;
-	
-	if (cnt > maxfail && fail == 0) {
-	    system(onfail);
-	    fail = 1;
+	failcount = 0;
+	for (i=0;i<num;i++) {
+	    if (!ping4(dsthost,timeout,bindaddr))
+		failcount++;
 	}
 
-	if (cnt == 0 && fail == 1) {
+	if (failcount >= maxloss) {
+	    cntbatchfails++;
+	} else {
+	    cntbatchfails=0;
+	}
+
+	if (cntbatchfails > maxfail && failtrigger == 0) {
+	    system(onfail);
+	    failtrigger = 1;
+	}
+
+	if (cntbatchfails == 0 && failtrigger == 1) {
 	    system(onrestore);
-	    fail = 0;
+	    failtrigger = 0;
 	}
 	sleep(interval);
 
