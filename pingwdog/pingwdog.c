@@ -56,9 +56,8 @@
 #include <netdb.h>
 #include <sys/select.h>
 #include <assert.h>
+#include <syslog.h>
 
-#define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
-/* From Stevens, UNP2ev1 */
 unsigned short
 in_cksum(unsigned short *addr, int len)
 {
@@ -217,7 +216,7 @@ int main(int argc,char **argv)
 {
   int interval = 5, maxfail = 5,gracetime = 60,timeout=1000,num=1,maxloss=1;
   char *onfail = NULL,*onrestore = NULL,*dsthost=NULL,*bindaddr=NULL;
-  int len,c,cntbatchfails = 0,failtrigger = 0,failcount = 0,i,background=1;
+  int len,c,cntbatchfails = 0,failtrigger = 2,failcount = 0,i,background=1,syslogswitch=0;
 
   while (1)
          {
@@ -237,13 +236,14 @@ int main(int argc,char **argv)
                {"onrestore",  required_argument, 0, 'r'},
                {"bind",  required_argument, 0, 'b'},
                {"foreground",  no_argument, 0, '1'},
+               {"syslog",  no_argument, 0, 's'},
                {"help",  no_argument, 0, 'h'},
                {0, 0, 0, 0}
              };
            /* getopt_long stores the option index here. */
 	    int option_index = 0;
      
-	    c = getopt_long (argc, argv, "d:b:p:g:f:r:h:b:n:l", long_options, &option_index);
+	    c = getopt_long (argc, argv, "d:b:p:g:f:r:b:n:lsh", long_options, &option_index);
           /* Detect the end of the options. */
            if (c == -1)
              break;
@@ -301,6 +301,10 @@ int main(int argc,char **argv)
              case '1':
 		background = 0;
                break;
+
+             case 's':
+		syslogswitch = 1;
+               break;
      
              case 'h':
 		printf("Available options:\n");
@@ -331,6 +335,10 @@ int main(int argc,char **argv)
 
     if (background)
 	daemon(0,1);
+
+    if (syslogswitch)
+	syslog(LOG_WARNING,"pingwdog start",dsthost);
+
     while(1) {
 	failcount = 0;
 	for (i=0;i<num;i++) {
@@ -344,13 +352,18 @@ int main(int argc,char **argv)
 	    cntbatchfails=0;
 	}
 
-	if (cntbatchfails > maxfail && failtrigger == 0) {
+	if (cntbatchfails > maxfail && failtrigger != 1) {
 	    system(onfail);
+	    if (syslogswitch)
+		syslog(LOG_WARNING,"pingwdog, %s from %s is BAD",dsthost,(bindaddr == NULL ? "default" : bindaddr));
 	    failtrigger = 1;
 	}
 
-	if (cntbatchfails == 0 && failtrigger == 1) {
+	if (cntbatchfails == 0 && failtrigger != 0) {
 	    system(onrestore);
+	    if (syslogswitch)
+		syslog(LOG_WARNING,"pingwdog, %s from %s is GOOD",dsthost,(bindaddr == NULL ? "default" : bindaddr));
+
 	    failtrigger = 0;
 	}
 	sleep(interval);
