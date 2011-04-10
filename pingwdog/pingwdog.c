@@ -58,6 +58,9 @@
 #include <assert.h>
 #include <syslog.h>
 
+//TODO: remove global variable, make global struct
+int background=1;
+
 unsigned short
 in_cksum(unsigned short *addr, int len)
 {
@@ -88,6 +91,17 @@ long timevaldiff(struct timeval *starttime, struct timeval *finishtime)
   msec=(finishtime->tv_sec-starttime->tv_sec)*1000;
   msec+=(finishtime->tv_usec-starttime->tv_usec)/1000;
   return msec;
+}
+
+void exec_detached(char *string, int good) {
+
+    pid_t pid = fork();
+    if (pid)
+	return;
+
+    setsid();
+    execlp(string,(good == 1 ? "good" : "bad"),NULL);
+    exit(0);
 }
 
 
@@ -183,20 +197,27 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr)
 		dstsize = sizeof(dst);
 		rcvd = recvfrom(s,buf,sizeof(buf),0, (struct sockaddr *)&src, &dstsize);
 		if (rcvd >= ( 8 + ip->ip_hl * 4)) {
-		    //printf("Got something %d == %d\n",icmp->icmp_hun.ih_idseq.icd_seq,seq);
-		    if (icmp->icmp_type == ICMP_ECHOREPLY && !memcmp(&src,&dst,dstsize) && icmp->icmp_hun.ih_idseq.icd_id == getpid() && icmp->icmp_hun.ih_idseq.icd_seq == seq) {
+		    if (!background) {
+			printf("Got something %d == %d, %d == %d code %d == %d and cmp %d(%d)\n",icmp->icmp_hun.ih_idseq.icd_seq,seq,icmp->icmp_hun.ih_idseq.icd_id,getpid(),icmp->icmp_type,ICMP_ECHOREPLY,memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)),dstsize);
+			printf("src %s\n", inet_ntoa(src.sin_addr));
+			printf("dst %s\n", inet_ntoa(dst.sin_addr));
+		    }
+		    if (icmp->icmp_type == ICMP_ECHOREPLY && !memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)) && icmp->icmp_hun.ih_idseq.icd_id == getpid() && icmp->icmp_hun.ih_idseq.icd_seq == seq) {
+			if (!background)
+			    printf("VALID PACKET\n");
 			close(s);
 			return(1);
 		    }
 		} 
-		//else {
-		//    printf("Too short packet\n");
-		//}
+//		else {
+//		    printf("Too short packet\n");
+//		}
 	    }
 	    timediff = timevaldiff(&tvent,&tvcur);
 
 	    if (retval != 1 && timediff >= maxdelay) {
-		//printf("Expired\n");
+		if (!background)
+		    printf("No valid packet, expired\n");
 		close(s);
 		return(0);
 	    } else {
@@ -204,7 +225,6 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr)
     		tv.tv_sec = stilldelay/1000;
     		tv.tv_usec = (stilldelay%1000)*1000;
 	    }
-
 	}
 	close(s);
 	return(retval);	
@@ -216,7 +236,15 @@ int main(int argc,char **argv)
 {
   int interval = 5, maxfail = 5,gracetime = 60,timeout=1000,num=1,maxloss=1;
   char *onfail = NULL,*onrestore = NULL,*dsthost=NULL,*bindaddr=NULL;
-  int len,c,cntbatchfails = 0,failtrigger = 2,failcount = 0,i,background=1,syslogswitch=0;
+  int len,c,cntbatchfails = 0,failtrigger = 2,failcount = 0,i,syslogswitch=0;
+  struct sigaction sa;
+
+  sa.sa_handler = SIG_IGN;
+  sa.sa_flags = SA_NOCLDWAIT;
+  if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+    perror("sigaction");
+    exit(1);
+  }
 
   while (1)
          {
@@ -318,6 +346,7 @@ int main(int argc,char **argv)
 		printf("--onfail 	- Script to run on failure\n");
 		printf("--onrestore 	- Script to run on restore\n");
 		printf("--bind	 	- Bind to IP\n");
+		printf("--foreground 	- Fork to foreground\n");
                /* getopt_long already printed an error message. */
 		exit(1);
                break;
@@ -333,11 +362,16 @@ int main(int argc,char **argv)
 	exit(1);
     }
 
+    if (num < maxloss) {
+	printf("Number of pings less than required maxloss, dropping maxloss number to num\n");
+	maxloss = num;
+    }
+
     if (background)
-	daemon(0,1);
+	i = daemon(0,1);
 
     if (syslogswitch)
-	syslog(LOG_WARNING,"pingwdog start",dsthost);
+	syslog(LOG_WARNING,"pingwdog start");
 
     while(1) {
 	failcount = 0;
@@ -353,14 +387,14 @@ int main(int argc,char **argv)
 	}
 
 	if (cntbatchfails > maxfail && failtrigger != 1) {
-	    system(onfail);
+	    exec_detached(onfail,0);
 	    if (syslogswitch)
 		syslog(LOG_WARNING,"pingwdog, %s from %s is BAD",dsthost,(bindaddr == NULL ? "default" : bindaddr));
 	    failtrigger = 1;
 	}
 
 	if (cntbatchfails == 0 && failtrigger != 0) {
-	    system(onrestore);
+	    exec_detached(onrestore,1);
 	    if (syslogswitch)
 		syslog(LOG_WARNING,"pingwdog, %s from %s is GOOD",dsthost,(bindaddr == NULL ? "default" : bindaddr));
 
