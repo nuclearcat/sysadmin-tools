@@ -21,7 +21,7 @@
  * Or, point your browser to http://www.gnu.org/copyleft/gpl.html
  *
  * Recommended gcc flags:
- * gcc -s -Wall -o trafw trafw.c -lpcap -lpthread
+ * gcc -s -Wall -o trafw trafw.c -lpcap -lpthread -lrt
  *
  * ATTENTION! Real tests discover, that this application cannot be used on
  * loaded links. Results will be not precise, cause libpcap dropping packets.
