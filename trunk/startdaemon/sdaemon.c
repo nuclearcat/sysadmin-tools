@@ -57,5 +57,6 @@ main(int argc, char **argv)
 
 	i = launch_child(prog,argv);
 	printf("%d\n",i);
+	
 	return (0);
 }
