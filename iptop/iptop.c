@@ -248,7 +248,7 @@ int main(int argc,char **argv)
     timediff = timevaldiff(&tv1, &tv2);
 
     printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
-    printf("Time %ld, total bytes%d\n",timediff,bytes);
+    printf("Time %ld, total bytes %lld\n",timediff,bytes);
     for (i=0;i<HASHSIZE;i++) {
 	 ptr = &pairs[i];
 	 while(ptr->refcount) {
