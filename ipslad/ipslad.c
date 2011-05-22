@@ -226,6 +226,36 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	
 }
 
+void exec_detached(char *program, char *attribute) {
+    int tty_fd = -1;
+    int devnull_fd = -1;
+    int i;
+    pid_t pid;
+
+    tty_fd=open("/dev/tty", O_RDWR);
+    devnull_fd=open("/dev/null", O_RDWR);
+    i = fork();
+    if (i<0) {
+	perror("Unable to fork.\n");
+	exit(1);
+    }
+    if (i)
+	return;
+
+     /* change tty */
+    ioctl(tty_fd, TIOCNOTTY, 0);
+    close(tty_fd);
+    umask(022); /* set a default for dumb programs */
+    dup2(devnull_fd,0); /* stdin */
+    dup2(devnull_fd,1); /* stdout */
+    dup2(devnull_fd,2); /* stderr */
+     /* now close all extra fds */
+    for (i=getdtablesize()-1; i>=3; --i) close(i);
+
+    execlp(program,program,attribute,NULL);
+    exit(0);
+}
+
 
 int main(int argc,char **argv)
 {
@@ -242,6 +272,16 @@ int main(int argc,char **argv)
   struct timeval tv;
   time_t oldtime = time(NULL);
   char buffer[MAXBUF];
+  struct sigaction sa;
+
+  /* prevent zombies */
+  sa.sa_handler = SIG_IGN;
+  sa.sa_flags = SA_NOCLDWAIT;
+  if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+  }
+
 
   while (1)
          {
@@ -476,8 +516,8 @@ int main(int argc,char **argv)
 			snprintf(buffer,MAXBUF-1,"%s/ALARM: Loss exceeding trigger value\n",name);
 			syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 			if (onfail) {
-			    snprintf(buffer,MAXBUF-1,"%s %s fail loss %f",name,onfail,(sumloss/cntloss*100.0));
-			    system(buffer);
+			    snprintf(buffer,MAXBUF-1,"%s fail loss %f",name,(sumloss/cntloss*100.0));
+			    exec_detached(onfail,buffer);
 			}
 			trigloss = time(NULL);
 		    }
@@ -486,8 +526,8 @@ int main(int argc,char **argv)
 		    snprintf(buffer,MAXBUF-1,"%s/RECOVERED: Loss \n",name);
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
-			snprintf(buffer,MAXBUF-1,"%s %s restore loss %f",name,onfail,(sumloss/cntloss));
-			system(buffer);
+			snprintf(buffer,MAXBUF-1,"%s restore loss %f",name,(sumloss/cntloss));
+			exec_detached(onfail,buffer);
 		    }
 		}
 	    }
@@ -499,8 +539,8 @@ int main(int argc,char **argv)
 			snprintf(buffer,MAXBUF-1,"%s/ALARM: latency exceeding trigger value\n",name);
 			syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 			if (onfail) {
-			    snprintf(buffer,MAXBUF-1,"%s %s fail latency %f",name,onfail,(sumlatency/cntlatency));
-			    system(buffer);
+			    snprintf(buffer,MAXBUF-1,"%s fail latency %f",name,(sumlatency/cntlatency));
+			    exec_detached(onfail,buffer);
 			}
 			triglatency = time(NULL);
 		    }
@@ -509,8 +549,8 @@ int main(int argc,char **argv)
 		    snprintf(buffer,MAXBUF-1,"%s/RECOVERED: latency \n",name);
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
-			snprintf(buffer,MAXBUF-1,"%s %s restore latency %f",name,onfail,(sumlatency/cntlatency));
-			system(buffer);
+			snprintf(buffer,MAXBUF-1,"%s restore latency %f",name,(sumlatency/cntlatency));
+			exec_detached(onfail,buffer);
 		    }
 		}
 	    }
@@ -521,8 +561,8 @@ int main(int argc,char **argv)
 			snprintf(buffer,MAXBUF-1,"%s/ALARM: jitter exceeding trigger value\n",name);
 			syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 			if (onfail) {
-			    snprintf(buffer,MAXBUF-1,"%s %s fail jitter %f",name,onfail,(sumjitter/cntjitter));
-			    system(buffer);
+			    snprintf(buffer,MAXBUF-1,"%s fail jitter %f",name,(sumjitter/cntjitter));
+			    exec_detached(onfail,buffer);
 			}
 			trigjitter = time(NULL);
 		    }
@@ -531,8 +571,8 @@ int main(int argc,char **argv)
 		    snprintf(buffer,MAXBUF-1,"%s/RECOVERED: jitter \n",name);
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
-			snprintf(buffer,MAXBUF-1,"%s %s restore jitter %f",name,onfail,(sumjitter/cntjitter));
-			system(buffer);
+			snprintf(buffer,MAXBUF-1,"%s restore jitter %f",name,(sumjitter/cntjitter));
+			exec_detached(onfail,buffer);
 		    }
 		}
 	    }
