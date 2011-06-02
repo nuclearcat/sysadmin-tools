@@ -64,6 +64,12 @@
 
 int verbose = 0;
 
+/*
+struct pings {    
+	struct 
+};
+*/
+
 /* From Stevens, UNP2ev1 */
 unsigned short
 in_cksum(unsigned short *addr, int len)
@@ -262,12 +268,17 @@ int main(int argc,char **argv)
   int interval = 500, timeout = 500, size = 100, period = 60, span = 200, inertia = 30;
 
   int tlatencyhi = 200, tlatencylo = 150, tjitterlo = 0, tjitterhi = 0;
+  int toutagebad = 0, toutagegood = 0;
   double tlosshi = 1.0, tlosslo = 0.5;
 
   char *dsthost=NULL,*bindaddr=NULL,*name=NULL,*onfail=NULL,*onrestore=NULL,*tmp;
   int len,c,prevc,i;
   int cntlatency = 0,cntloss = 0,cntjitter = 0, operational = 0;
   double sumlatency = 0.0,sumloss = 0.0,sumjitter = 0.0;
+
+  int rpt_cntlatency = 0,rpt_cntloss = 0,rpt_cntjitter = 0;
+  double rpt_sumlatency = 0.0, rpt_sumloss = 0.0, rpt_sumjitter = 0.0;
+
   time_t triglatency = 0, trigloss = 0, trigjitter = 0;
   struct timeval tv;
   time_t oldtime = time(NULL);
@@ -302,6 +313,7 @@ int main(int argc,char **argv)
                {"triggerloss",  required_argument, 0, '3'},
                {"triggerlatency",  required_argument, 0, '4'},
                {"triggerjitter",  required_argument, 0, '5'},
+               {"triggeroutage",  required_argument, 0, '6'},
                {"onfail",  required_argument, 0, 'f'},
                {"onrestore",  required_argument, 0, 'r'},
                {"verbose",  no_argument, 0, 'v'},
@@ -365,6 +377,14 @@ int main(int argc,char **argv)
 
                break;
 
+             case '6':
+		tmp = strchr(optarg,'/');
+		toutagebad = toutagegood = atoi(optarg);
+		if (tmp)
+		    toutagegood = atof(++tmp);
+               break;
+
+
              case 'd':
 		len = strlen(optarg) + 1;
 		dsthost = malloc(len);
@@ -414,6 +434,7 @@ int main(int argc,char **argv)
 		printf("--triggerloss 		- Packetloss %% (0.5/1.0)\n");
 		printf("--triggerlatency	- Latency msec (150/200)\n");
 		printf("--triggerjitter		- Jitter msec (0/0)\n");
+//		printf("--triggeroutage		- Detect outage, missed packets/packets ok (0/0)\n");
                /* getopt_long already printed an error message. */
 		exit(1);
                break;
@@ -474,7 +495,11 @@ int main(int argc,char **argv)
 	    /* Loss */
 	    sumloss++; 
 	    cntloss++;
+	    rpt_sumloss++; 
+	    rpt_cntloss++;
+
 	} else {
+	    /* TODO: Calculate final values by just adding rpt_ */
 	    /* Loss handling, no sum, there is no loss */
 	    cntloss++; 
 	    /* Latency */
@@ -483,10 +508,34 @@ int main(int argc,char **argv)
 	    /* Jitter */
 	    sumjitter += abs(prevc-c);
 	    cntjitter++;
+
+
+	    /* Loss handling, no sum, there is no loss */
+	    rpt_cntloss++; 
+	    /* Latency */
+	    rpt_sumlatency += (double)c;
+	    rpt_cntlatency++;
+	    /* Jitter */
+	    rpt_sumjitter += abs(prevc-c);
+	    rpt_cntjitter++;
+
+
 	    if (verbose || ( (time(NULL) - oldtime > period) && operational )) {
+		// int rpt_cntlatency = 0,rpt_cntloss = 0,rpt_cntjitter = 0;
+		//double rpt_sumlatency = 0.0, rpt_sumloss = 0.0, rpt_sumjitter = 0.0;
+
 		oldtime = time(NULL);
-		snprintf(buffer,MAXBUF-1,"%s: lat:%d ms, jitt %d ms, avg: loss %f %%, latency %f ms, jitt %f ms A:%s:%s:%s\n",name,c,abs(prevc-c),sumloss/cntloss*100.0,(sumlatency/cntlatency),sumjitter/cntjitter,trigloss?"bad":"ok",triglatency?"bad":"ok",trigjitter?"bad":"ok");
+		snprintf(buffer,MAXBUF-1,"%s: loss,lat,jit cur: %f %f %f , avg: %f %f %f A:%s:%s:%s\n",name, \
+		rpt_sumloss/rpt_cntloss*100.0,(rpt_sumlatency/rpt_cntlatency),rpt_sumjitter/rpt_cntjitter, \
+		sumloss/cntloss*100.0,(sumlatency/cntlatency),sumjitter/cntjitter,trigloss?"bad":"ok",triglatency?"bad":"ok",trigjitter?"bad":"ok");
 		syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
+		rpt_cntlatency = 0;
+		rpt_cntloss = 0;
+		rpt_cntjitter = 0;
+		rpt_sumlatency = 0.0;
+		rpt_sumloss = 0.0;
+		rpt_sumjitter = 0.0;
+
 	    }
 	}
 
@@ -516,7 +565,7 @@ int main(int argc,char **argv)
 			snprintf(buffer,MAXBUF-1,"%s/ALARM: Loss exceeding trigger value\n",name);
 			syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 			if (onfail) {
-			    snprintf(buffer,MAXBUF-1,"%s fail loss %f",name,(sumloss/cntloss*100.0));
+			    snprintf(buffer,MAXBUF-1,"%s fail loss %f dst/src %s/%s",name,(sumloss/cntloss*100.0),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
 			    exec_detached(onfail,buffer);
 			}
 			trigloss = time(NULL);
@@ -526,7 +575,7 @@ int main(int argc,char **argv)
 		    snprintf(buffer,MAXBUF-1,"%s/RECOVERED: Loss \n",name);
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
-			snprintf(buffer,MAXBUF-1,"%s restore loss %f",name,(sumloss/cntloss));
+			snprintf(buffer,MAXBUF-1,"%s restore loss %f dst/src %s/%s",name,(sumloss/cntloss),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
 			exec_detached(onfail,buffer);
 		    }
 		}
@@ -539,7 +588,7 @@ int main(int argc,char **argv)
 			snprintf(buffer,MAXBUF-1,"%s/ALARM: latency exceeding trigger value\n",name);
 			syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 			if (onfail) {
-			    snprintf(buffer,MAXBUF-1,"%s fail latency %f",name,(sumlatency/cntlatency));
+			    snprintf(buffer,MAXBUF-1,"%s fail latency %f dst/src %s/%s",name,(sumlatency/cntlatency),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
 			    exec_detached(onfail,buffer);
 			}
 			triglatency = time(NULL);
@@ -549,7 +598,7 @@ int main(int argc,char **argv)
 		    snprintf(buffer,MAXBUF-1,"%s/RECOVERED: latency \n",name);
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
-			snprintf(buffer,MAXBUF-1,"%s restore latency %f",name,(sumlatency/cntlatency));
+			snprintf(buffer,MAXBUF-1,"%s restore latency %f dst/src %s/%s",name,(sumlatency/cntlatency),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
 			exec_detached(onfail,buffer);
 		    }
 		}
@@ -561,7 +610,7 @@ int main(int argc,char **argv)
 			snprintf(buffer,MAXBUF-1,"%s/ALARM: jitter exceeding trigger value\n",name);
 			syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 			if (onfail) {
-			    snprintf(buffer,MAXBUF-1,"%s fail jitter %f",name,(sumjitter/cntjitter));
+			    snprintf(buffer,MAXBUF-1,"%s fail jitter %f dst/src %s/%s",name,(sumjitter/cntjitter),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
 			    exec_detached(onfail,buffer);
 			}
 			trigjitter = time(NULL);
@@ -571,7 +620,7 @@ int main(int argc,char **argv)
 		    snprintf(buffer,MAXBUF-1,"%s/RECOVERED: jitter \n",name);
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
-			snprintf(buffer,MAXBUF-1,"%s restore jitter %f",name,(sumjitter/cntjitter));
+			snprintf(buffer,MAXBUF-1,"%s restore jitter %f dst/src %s/%s",name,(sumjitter/cntjitter),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
 			exec_detached(onfail,buffer);
 		    }
 		}
