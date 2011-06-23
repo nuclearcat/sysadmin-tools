@@ -116,8 +116,10 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	fd_set rfds;
 	struct timeval tv;
 	struct timeval tvent, tvcur; // entrance time, current time
-	long timediff;
+	long timediff = 0;
 	size_t dstsize;
+
+	static int sequence = 0;
 
 	gettimeofday(&tvent,NULL);
 
@@ -176,7 +178,9 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
         icmp->icmp_type = ICMP_ECHO;
         icmp->icmp_code = 0;
 	icmp->icmp_hun.ih_idseq.icd_id = getpid();
-	icmp->icmp_hun.ih_idseq.icd_seq = seq = htons(rand());
+//	icmp->icmp_hun.ih_idseq.icd_seq = seq = htons(rand());
+	sequence++;
+	icmp->icmp_hun.ih_idseq.icd_seq = seq = htons(sequence);
 
 	icmp_len = sizeof(buf) - sizeof(struct iphdr);
         icmp->icmp_cksum = in_cksum((unsigned short *)icmp, icmp_len);
@@ -192,15 +196,18 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	while (1) {
 	    FD_SET(s, &rfds);
 	    retval = select(s+1, &rfds, NULL, NULL, &tv);
+	    /* Timeout */
 	    if (tv.tv_usec == 0 && tv.tv_sec == 0) {
-		//printf("TIMEOUT\n");
 		close(s);
-		return(0);
+		return(timediff);
 	    }
 	    if (retval > 0) {
 		dstsize = sizeof(dst);
 		rcvd = recvfrom(s,buf,sizeof(buf),0, (struct sockaddr *)&src, &dstsize);
-		if (rcvd >= ( 8 + ip->ip_hl * 4)) {
+		/* Check only if we dont have anything, otherwise just discard packet 
+		   till time is expired
+		*/
+		if (!timediff && rcvd >= ( 8 + ip->ip_hl * 4)) {
 	    	    //printf("Got something %d == %d,%d == %d,%d\n",icmp->icmp_hun.ih_idseq.icd_seq,seq,icmp->icmp_hun.ih_idseq.icd_id,getpid(),!memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)));
 	    	    if (icmp->icmp_type == ICMP_ECHOREPLY && !memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)) && icmp->icmp_hun.ih_idseq.icd_id == getpid() && icmp->icmp_hun.ih_idseq.icd_seq == seq) {
 			gettimeofday(&tvcur,NULL);
@@ -208,10 +215,10 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 			/* TODO, usec resolution */
 			if (timediff == 0)
 			    timediff = 1;
-			close(s);
-			return(timediff);
+			//close(s);
+			//return(timediff);
 		    }
-		} 
+		}
 	    }
 	    if (retval < 0) {
 		printf("ERR\n");
@@ -262,10 +269,15 @@ void exec_detached(char *program, char *attribute) {
     exit(0);
 }
 
+/*
+struct _trackparam {
+    double 
+};
+*/
 
 int main(int argc,char **argv)
 {
-  int interval = 500, timeout = 500, size = 100, period = 60, span = 200, inertia = 30;
+  int interval = 500, size = 100, period = 60, span = 200, inertia = 30;
 
   int tlatencyhi = 200, tlatencylo = 150, tjitterlo = 0, tjitterhi = 0;
   int toutagebad = 0, toutagegood = 0;
@@ -304,7 +316,6 @@ int main(int argc,char **argv)
                {"dst",  required_argument, 0, 'd'},
                {"name",  required_argument, 0, 'n'},
                {"interval",  required_argument, 0, 'i'},
-               {"timeout",  required_argument, 0, 't'},
                {"size",  required_argument, 0, 's'},
                {"bind",  required_argument, 0, 'b'},
                {"maxlost",  required_argument, 0, 'm'},
@@ -332,10 +343,6 @@ int main(int argc,char **argv)
              {
              case 'i':
 		interval = atoi(optarg);
-               break;
-
-             case 't':
-		timeout = atoi(optarg);
                break;
 
              case 's':
@@ -421,7 +428,6 @@ int main(int argc,char **argv)
 		printf("--dst 			- Destination host\n");
 		printf("--name 			- Name of measurement\n");
 		printf("--interval 		- Interval between pings (500ms)\n");
-		printf("--timeout 		- Ping timeout (1000ms)\n");
 		printf("--size 			- Size of packet (100)\n");
 		printf("--bind 			- Bind address\n");
 		printf("--maxlost 		- Max packets lost in row to trigger alert\n");
@@ -456,8 +462,15 @@ int main(int argc,char **argv)
 
 
     /* TODO: Alert about invalid values */
+    if (tlatencyhi > interval)
+	tlatencyhi = interval;
+
+    if (tlatencylo > interval)
+	tlatencylo = interval;
+
     if (tlatencyhi < tlatencylo)
 	tlatencyhi = tlatencylo;
+
 
     if (tlosshi < tlosslo)
 	tlosshi = tlosslo;
@@ -471,7 +484,7 @@ int main(int argc,char **argv)
     snprintf(buffer,MAXBUF-1,"%s/SLAd starting",name);
     syslog(LOG_USER|LOG_ALERT,"%s",buffer);
 
-    snprintf(buffer,MAXBUF-1,"%s/i%d t%d sz%d spn%d rptper%d tloss%f/%f tlat%d/%d tjit%d/%d\n",name,interval,timeout,size,span,period,tlosslo,tlosshi,tlatencylo,tlatencyhi,tjitterlo,tjitterhi);
+    snprintf(buffer,MAXBUF-1,"%s/i%d sz%d spn%d rptper%d tloss%f/%f tlat%d/%d tjit%d/%d\n",name,interval,size,span,period,tlosslo,tlosshi,tlatencylo,tlatencyhi,tjitterlo,tjitterhi);
     syslog(LOG_USER|LOG_ALERT,"%s",buffer);
 
     c = 0;
@@ -481,7 +494,7 @@ int main(int argc,char **argv)
 	if (c)
 	    prevc = c;
 
-	c = ping4(dsthost,timeout,bindaddr,size);
+	c = ping4(dsthost,interval,bindaddr,size);
 
 	/* Handle first measurement */
 	if (!prevc)
@@ -576,7 +589,7 @@ int main(int argc,char **argv)
 		    syslog(LOG_DAEMON|LOG_NOTICE,"%s",buffer);
 		    if (onrestore) {
 			snprintf(buffer,MAXBUF-1,"%s restore loss %f dst/src %s/%s",name,(sumloss/cntloss),dsthost,bindaddr == NULL ? "N/A" : bindaddr);
-			exec_detached(onfail,buffer);
+			exec_detached(onrestore,buffer);
 		    }
 		}
 	    }
@@ -628,10 +641,11 @@ int main(int argc,char **argv)
 
 
 	}
-
+	/*
         tv.tv_sec = interval/1000;
         tv.tv_usec = (interval%1000)*1000;
 	select(0, NULL, NULL, NULL, &tv);
+	*/
     }
 
     return(0);
