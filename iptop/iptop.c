@@ -165,6 +165,18 @@ long timevaldiff(struct timeval *starttime, struct timeval *finishtime)
   return msec;
 }
 
+
+int compare (const void * a, const void * b)
+{
+    struct ippairs *px, *py;
+
+    px = (struct ippairs *)a;
+    py = (struct ippairs *)b;
+    
+    return ( px->bytes - py->bytes );
+}
+
+
 int main(int argc,char **argv)
 { 
 //    char *dev; 
@@ -248,7 +260,10 @@ int main(int argc,char **argv)
     timediff = timevaldiff(&tv1, &tv2);
 
     printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
-    printf("Time %ld, total bytes %lld\n",timediff,bytes);
+    printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
+
+    qsort (pairs, HASHSIZE, sizeof(struct ippairs), compare);
+
     for (i=0;i<HASHSIZE;i++) {
 	 ptr = &pairs[i];
 	 while(ptr->refcount) {
@@ -262,6 +277,6 @@ int main(int argc,char **argv)
 	    ptr = ptr->next;
 	 };
     }
-    fprintf(stdout,"Program finished\n");
+//    fprintf(stdout,"Program finished\n");
     return 0;
 }

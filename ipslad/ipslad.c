@@ -64,6 +64,10 @@
 
 int verbose = 0;
 
+struct mondata {
+    unsigned int rtt;
+};
+
 /*
 struct pings {    
 	struct 
@@ -252,8 +256,11 @@ void exec_detached(char *program, char *attribute) {
 	perror("Unable to fork.\n");
 	exit(1);
     }
-    if (i)
+    if (i) {
+	close(devnull_fd);
+	close(tty_fd);
 	return;
+    }
 
      /* change tty */
     ioctl(tty_fd, TIOCNOTTY, 0);
@@ -479,6 +486,8 @@ int main(int argc,char **argv)
 	tjitterhi = tjitterlo;
 
     
+    
+
     daemon(0,1);
 
     snprintf(buffer,MAXBUF-1,"%s/SLAd starting",name);
