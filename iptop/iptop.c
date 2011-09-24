@@ -61,7 +61,7 @@ static int find_ip_eth(char* buf)
 				offset = PPPOE_SIZE;
 			break;
 		default: /* well, this is not an IP packet */
-			printf("Ethertype %0x\n",eth_proto_type);
+//			printf("Ethertype %0x\n",eth_proto_type);
 			offset = -1;
 			break;			
 	}
