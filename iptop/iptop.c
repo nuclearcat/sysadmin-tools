@@ -23,7 +23,7 @@
 
 #define ETHERTYPE_PPPOE_SESSION 0x8864
 #define PPPOE_SIZE              22                                                                                                                                                                        
-#define HASHSIZE		0xFFFF /* Must be power of 2 */
+#define HASHSIZE		0xFFFFF /* Must be power of 2 */
 
 
 struct ippairs {
@@ -197,6 +197,7 @@ int main(int argc,char **argv)
     /* Options must be passed in as a string because I am lazy */
     if(argc < 5){ 
         fprintf(stdout,"Usage: %s interface \"pcap filter\" packets [dst|src]\n",argv[0]);
+	fprintf(stdout,"Due hash collisions sorting can be invalid. Use sort tool till i rewrite sorting procedure\n");
         return 0;
     }
 
@@ -223,7 +224,7 @@ int main(int argc,char **argv)
 
     /* open device for reading. NOTE: defaulting to
      * promiscuous mode*/
-    descr = pcap_open_live(argv[1],BUFSIZ,0,-1,errbuf);
+    descr = pcap_open_live(argv[1],BUFSIZ,0,1000,errbuf);
     if(descr == NULL) { 
 	printf("pcap_open_live(): %s\n",errbuf); exit(1); 
     }
@@ -273,7 +274,9 @@ int main(int argc,char **argv)
 	    if (!ptr->next) {
 		break;
 //		printf("N\n");
-    	    }
+    	    } else {
+		printf("Collision\n");
+	    }
 	    ptr = ptr->next;
 	 };
     }
