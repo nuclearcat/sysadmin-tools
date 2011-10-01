@@ -197,7 +197,7 @@ dump_interface (void *num)
   else
     tmp = argv_global[3];
 
-  descr = pcap_open_live (tmp, BUFSIZ, 0, -1, errbuf);
+  descr = pcap_open_live (tmp, BUFSIZ, 0, 1000, errbuf);
   if (descr == NULL)
     {
       printf ("pcap_open_live(): %s\n", errbuf);
