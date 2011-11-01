@@ -187,12 +187,15 @@ int main(int argc,char **argv)
     bpf_u_int32 netp;           /* ip                        */
 //    u_char* args = NULL;
     int args = 0;
-    int linktype,i;
+    int linktype,i,len;
     struct ippairs *ptr;
 //    FILE *fff;
 //    char *buf;
     long timediff;
     struct timeval tv1, tv2;
+    struct in_addr s_addr;
+    char ipbuf[16];
+    char *ntoaptr;
 
     /* Options must be passed in as a string because I am lazy */
     if(argc < 5){ 
@@ -268,9 +271,17 @@ int main(int argc,char **argv)
     for (i=0;i<HASHSIZE;i++) {
 	 ptr = &pairs[i];
 	 while(ptr->refcount) {
-	    struct in_addr s_addr;
+	    memset(ipbuf,0x20,16);
+	    ipbuf[15] = 0x0;
 	    s_addr.s_addr = (in_addr_t)ptr->daddr;
-	    printf("%s bytes %d packets %d avgsz %d percbytes %llu percpkts %llu spd %llu Kbit/s\n",inet_ntoa(s_addr),ptr->bytes,ptr->refcount,(ptr->bytes/ptr->refcount),ptr->bytes*100/bytes,ptr->refcount*100/packetstotal,((uint64_t)ptr->bytes*8/(uint64_t)timediff));
+	    ntoaptr = inet_ntoa(s_addr);
+	    if (!ntoaptr) {
+		perror("inet_ntoa()");
+		exit(1);
+	    }
+	    len = strlen(ntoaptr);
+	    strncpy(ipbuf,ntoaptr,len);
+	    printf("%s %db %dp avg %db %llu%%b %llu%%p %llu Kbit/s\n",ipbuf,ptr->bytes,ptr->refcount,(ptr->bytes/ptr->refcount),ptr->bytes*100/bytes,ptr->refcount*100/packetstotal,((uint64_t)ptr->bytes*8/(uint64_t)timediff));
 	    if (!ptr->next) {
 		break;
 //		printf("N\n");
