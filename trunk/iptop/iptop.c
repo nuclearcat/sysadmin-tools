@@ -29,7 +29,6 @@
 struct ippairs {
     u_int32_t addr;
     struct ippairs *next;
-    int32_t refcount;
     uint32_t bytes;
     uint32_t packets;
     UT_hash_handle hh;
@@ -80,12 +79,12 @@ void add_ip(struct iphdr *ip,unsigned int bytes,int dir) {
     HASH_FIND_INT( pairs, &ipaddr, found );
 
     if (found) {
-	found->refcount++;
+	found->packets++;
 	found->bytes+=bytes;
     } else {
 	found = malloc(sizeof(struct ippairs));
 	memset(found,0x0,sizeof(struct ippairs));
-	found->refcount++;
+	found->packets++;
 	found->bytes+=bytes;
 	found->addr = ipaddr;
 	HASH_ADD_INT( pairs, addr, found );
@@ -144,6 +143,16 @@ int compare_bytes (const void * a, const void * b)
     return ( px->bytes - py->bytes );
 }
 
+int compare_packets (const void * a, const void * b)
+{
+    struct ippairs *px, *py;
+
+    px = (struct ippairs *)a;
+    py = (struct ippairs *)b;
+    
+    return ( px->packets - py->packets );
+}
+
 
 int main(int argc,char **argv)
 { 
@@ -161,12 +170,17 @@ int main(int argc,char **argv)
     char ipbuf[16];
     char *ntoaptr;
     struct ippairs *found = NULL;
+    int sortby = 0;
 
     /* Options must be passed in as a string because I am lazy */
     if(argc < 5){ 
-        fprintf(stdout,"Usage: %s interface \"pcap filter\" packets [dst|src]\n",argv[0]);
-	fprintf(stdout,"Due hash collisions sorting can be invalid. Use sort tool till i rewrite sorting procedure\n");
+        fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src) [p|b]\n",argv[0]);
+	fprintf(stdout,"p - sort by packets, b - by bytes (default)\n");
         return 0;
+    }
+
+    if (argc == 6 && argv[5][0] == 'p') {
+	sortby = 1;
     }
 
     packets = atoi(argv[3]);
@@ -219,20 +233,23 @@ int main(int argc,char **argv)
     printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
     printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
 
-    HASH_SORT(pairs, compare_bytes);
+    if (sortby == 0)
+	HASH_SORT(pairs, compare_bytes);
+    else if (sortby == 1)
+	HASH_SORT(pairs, compare_packets);
 
     for(found=pairs; found != NULL; found=found->hh.next) {
-	    memset(ipbuf,0x20,16);
-	    ipbuf[15] = 0x0;
-	    s_addr.s_addr = (in_addr_t)found->addr;
-	    ntoaptr = inet_ntoa(s_addr);
-	    if (!ntoaptr) {
-		perror("inet_ntoa()");
-		exit(1);
-	    }
-	    len = strlen(ntoaptr);
-	    strncpy(ipbuf,ntoaptr,len);
-	printf("%s %db %dp avg %db %llu%%b %llu%%p %llu Kbit/s\n",ipbuf,found->bytes,found->refcount,(found->bytes/found->refcount),found->bytes*100/bytes,found->refcount*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
+	memset(ipbuf,0x20,16);
+	ipbuf[15] = 0x0;
+	s_addr.s_addr = (in_addr_t)found->addr;
+	ntoaptr = inet_ntoa(s_addr);
+	if (!ntoaptr) {
+	    perror("inet_ntoa()");
+	    exit(1);
+	}
+	len = strlen(ntoaptr);
+	strncpy(ipbuf,ntoaptr,len);
+	printf("%s %db %dp avg %db %llu%%b %llu%%p %llu Kbit/s\n",ipbuf,found->bytes,found->packets,(found->bytes/found->packets),found->bytes*100/bytes,found->packets*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
     }
 
     return 0;
