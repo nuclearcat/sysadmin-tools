@@ -4,7 +4,7 @@ DEBUG=-g # -pg
 CFLAGS=-DVERSION=\"${VERSION}\" -Wall $(DEBUG) -O0
 LDFLAGS=$(DEBUG) -lrt -lpcap
 
-OBJS=iptop.o lookup3.o
+OBJS=iptop.o
 
 all: iptop
 
