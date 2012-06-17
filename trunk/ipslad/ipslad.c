@@ -249,28 +249,28 @@ void exec_detached(char *program, char *attribute) {
     int i;
     pid_t pid;
 
-    tty_fd=open("/dev/tty", O_RDWR);
-    devnull_fd=open("/dev/null", O_RDWR);
+//    tty_fd=open("/dev/tty", O_RDWR);
+//    devnull_fd=open("/dev/null", O_RDWR);
     i = fork();
     if (i<0) {
 	perror("Unable to fork.\n");
 	exit(1);
     }
-    if (i) {
-	close(devnull_fd);
-	close(tty_fd);
-	return;
-    }
+//    if (i) {
+//	close(devnull_fd);
+//	close(tty_fd);
+//	return;
+//    }
 
      /* change tty */
-    ioctl(tty_fd, TIOCNOTTY, 0);
-    close(tty_fd);
-    umask(022); /* set a default for dumb programs */
-    dup2(devnull_fd,0); /* stdin */
-    dup2(devnull_fd,1); /* stdout */
-    dup2(devnull_fd,2); /* stderr */
-     /* now close all extra fds */
-    for (i=getdtablesize()-1; i>=3; --i) close(i);
+//    ioctl(tty_fd, TIOCNOTTY, 0);
+//    close(tty_fd);
+//    umask(022); /* set a default for dumb programs */
+//    dup2(devnull_fd,0); /* stdin */
+//    dup2(devnull_fd,1); /* stdout */
+//    dup2(devnull_fd,2); /* stderr */
+//     /* now close all extra fds */
+//    for (i=getdtablesize()-1; i>=3; --i) close(i);
 
     execlp(program,program,attribute,NULL);
     exit(0);
@@ -485,10 +485,7 @@ int main(int argc,char **argv)
     if (tjitterhi < tjitterlo)
 	tjitterhi = tjitterlo;
 
-    
-    
-
-    daemon(0,1);
+    daemon(0,0);
 
     snprintf(buffer,MAXBUF-1,"%s/SLAd starting",name);
     syslog(LOG_USER|LOG_ALERT,"%s",buffer);
