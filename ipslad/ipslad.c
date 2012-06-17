@@ -133,6 +133,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 
 
        if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
+		syslog(LOG_USER|LOG_ALERT,"ping socket() error");
                 perror("socket");
                 exit(1);
         }
@@ -140,6 +141,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	    struct sockaddr_in serv_addr;
 	    serv_addr.sin_family = AF_INET;
 	    if (!inet_pton(AF_INET, bindaddr, (struct in_addr *)&serv_addr.sin_addr.s_addr)) {
+		syslog(LOG_USER|LOG_ALERT,"bind address invalid");
 		perror("bind address invalid");
 		exit(-1);
 	    }
@@ -147,6 +149,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	    if (bind(s, (struct sockaddr *) &serv_addr,
 		    sizeof(serv_addr)) < 0)
 	    {
+		syslog(LOG_USER|LOG_ALERT,"bind error");
 		perror("bind error");
 		exit(-1);
 	    }
@@ -154,6 +157,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 
         if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0) {
                 perror("IP_HDRINCL");
+		syslog(LOG_USER|LOG_ALERT,"HDR error");
                 exit(1);
         }
 
@@ -254,13 +258,14 @@ void exec_detached(char *program, char *attribute) {
     i = fork();
     if (i<0) {
 	perror("Unable to fork.\n");
+	syslog(LOG_USER|LOG_ALERT,"unable to fork");
 	exit(1);
     }
-//    if (i) {
+    if (i) {
 //	close(devnull_fd);
 //	close(tty_fd);
-//	return;
-//    }
+	return;
+    }
 
      /* change tty */
 //    ioctl(tty_fd, TIOCNOTTY, 0);
