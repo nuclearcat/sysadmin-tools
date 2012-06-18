@@ -68,12 +68,6 @@ struct mondata {
     unsigned int rtt;
 };
 
-/*
-struct pings {    
-	struct 
-};
-*/
-
 /* From Stevens, UNP2ev1 */
 unsigned short
 in_cksum(unsigned short *addr, int len)
@@ -107,36 +101,32 @@ long timevaldiff(struct timeval *starttime, struct timeval *finishtime)
   return msec;
 }
 
-
 static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 {
 	int s,retval,icmp_len,rcvd,seq;
 	int on = 1;
 	struct hostent *hp;
 	char buf[size];
-        struct ip *ip = (struct ip *)buf;
-        struct icmp *icmp = (struct icmp *)(ip + 1);
-        struct sockaddr_in dst,src;
+	struct ip *ip = (struct ip *)buf;
+	struct icmp *icmp = (struct icmp *)(ip + 1);
+	struct sockaddr_in dst,src;
 	fd_set rfds;
 	struct timeval tv;
 	struct timeval tvent, tvcur; // entrance time, current time
 	long timediff = 0;
 	size_t dstsize;
-
 	static int sequence = 0;
 
 	gettimeofday(&tvent,NULL);
 
-        FD_ZERO(&rfds);
+	FD_ZERO(&rfds);
 	memset(icmp,0x0,sizeof(struct icmp));
 
-
-
-       if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
-		syslog(LOG_USER|LOG_ALERT,"ping socket() error");
-                perror("socket");
-                exit(1);
-        }
+	if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
+		syslog(LOG_USER|LOG_ALERT, "ping socket() error");
+		perror("socket");
+		exit(1);
+	}
 	if (bindaddr != NULL) {
 	    struct sockaddr_in serv_addr;
 	    serv_addr.sin_family = AF_INET;
@@ -147,7 +137,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	    }
 	    serv_addr.sin_port = 0;
 	    if (bind(s, (struct sockaddr *) &serv_addr,
-		    sizeof(serv_addr)) < 0)
+		sizeof(serv_addr)) < 0)
 	    {
 		syslog(LOG_USER|LOG_ALERT,"bind error");
 		perror("bind error");
@@ -155,52 +145,50 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	    }
 	}
 
-        if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0) {
-                perror("IP_HDRINCL");
-		syslog(LOG_USER|LOG_ALERT,"HDR error");
-                exit(1);
-        }
+	if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0) {
+	    perror("IP_HDRINCL");
+	    syslog(LOG_USER|LOG_ALERT,"HDR error");
+	    exit(1);
+	}
 
-       if ((hp = gethostbyname(dsthost)) == NULL) {
-                if ((ip->ip_dst.s_addr = inet_addr(dsthost)) == -1) {
-                        fprintf(stderr, "%s: unknown host\n", dsthost);
-                }
-        } else {
-                memcpy(&ip->ip_dst.s_addr, hp->h_addr_list[0], hp->h_length);
-        }
+	if ((hp = gethostbyname(dsthost)) == NULL) {
+	    if ((ip->ip_dst.s_addr = inet_addr(dsthost)) == -1) {
+		fprintf(stderr, "%s: unknown host\n", dsthost);
+	    }
+	} else {
+	    memcpy(&ip->ip_dst.s_addr, hp->h_addr_list[0], hp->h_length);
+	}
 
-        ip->ip_v = 4;
-        ip->ip_hl = sizeof *ip >> 2;
-        ip->ip_tos = 0;
-        ip->ip_len = htons(sizeof(buf));
-        ip->ip_id = 0;
-        ip->ip_off = 0;
-        ip->ip_ttl = 255;
-        ip->ip_p = 1;
-        ip->ip_sum = 0;                 /* kernel fills in */
-        ip->ip_src.s_addr = 0;          /* kernel fills in */
+	/* Fill IPv4 header */
+	ip->ip_v = 4;
+	ip->ip_hl = sizeof *ip >> 2;
+	ip->ip_tos = 0;
+	ip->ip_len = htons(sizeof(buf));
+	ip->ip_id = 0;
+	ip->ip_off = 0;
+	ip->ip_ttl = 255;
+	ip->ip_p = 1;
+	ip->ip_sum = 0;                 /* kernel fills in */
+	ip->ip_src.s_addr = 0;          /* kernel fills in */
 
 	dst.sin_addr = ip->ip_dst;
-        dst.sin_family = AF_INET;
+	dst.sin_family = AF_INET;
 
-        icmp->icmp_type = ICMP_ECHO;
-        icmp->icmp_code = 0;
+	icmp->icmp_type = ICMP_ECHO;
+	icmp->icmp_code = 0;
 	icmp->icmp_hun.ih_idseq.icd_id = getpid();
-//	icmp->icmp_hun.ih_idseq.icd_seq = seq = htons(rand());
 	sequence++;
 	icmp->icmp_hun.ih_idseq.icd_seq = seq = htons(sequence);
 
 	icmp_len = sizeof(buf) - sizeof(struct iphdr);
-        icmp->icmp_cksum = in_cksum((unsigned short *)icmp, icmp_len);
+	icmp->icmp_cksum = in_cksum((unsigned short *)icmp, icmp_len);
 
 	if (sendto(s, buf, sizeof(buf), 0, (struct sockaddr *)&dst, sizeof(dst)) < 0)
-                        perror("sendto");
+	    perror("sendto");
 
-        
+	tv.tv_sec = maxdelay/1000;
+	tv.tv_usec = (maxdelay%1000)*1000;
 
-        tv.tv_sec = maxdelay/1000;
-        tv.tv_usec = (maxdelay%1000)*1000;
-	
 	while (1) {
 	    FD_SET(s, &rfds);
 	    retval = select(s+1, &rfds, NULL, NULL, &tv);
@@ -216,8 +204,8 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 		   till time is expired
 		*/
 		if (!timediff && rcvd >= ( 8 + ip->ip_hl * 4)) {
-	    	    //printf("Got something %d == %d,%d == %d,%d\n",icmp->icmp_hun.ih_idseq.icd_seq,seq,icmp->icmp_hun.ih_idseq.icd_id,getpid(),!memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)));
-	    	    if (icmp->icmp_type == ICMP_ECHOREPLY && !memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)) && icmp->icmp_hun.ih_idseq.icd_id == getpid() && icmp->icmp_hun.ih_idseq.icd_seq == seq) {
+		    //printf("Got something %d == %d,%d == %d,%d\n",icmp->icmp_hun.ih_idseq.icd_seq,seq,icmp->icmp_hun.ih_idseq.icd_id,getpid(),!memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)));
+		    if (icmp->icmp_type == ICMP_ECHOREPLY && !memcmp(&src.sin_addr,&dst.sin_addr,sizeof(src.sin_addr)) && icmp->icmp_hun.ih_idseq.icd_id == getpid() && icmp->icmp_hun.ih_idseq.icd_seq == seq) {
 			gettimeofday(&tvcur,NULL);
 			timediff = timevaldiff(&tvent,&tvcur);
 			/* TODO, usec resolution */
@@ -240,7 +228,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	    /* Expired */
 	    close(s);
 	    return(0);
-	} 
+	}
 
 	close(s);
 	return(timediff);	
@@ -253,8 +241,6 @@ void exec_detached(char *program, char *attribute) {
     int i;
     pid_t pid;
 
-//    tty_fd=open("/dev/tty", O_RDWR);
-//    devnull_fd=open("/dev/null", O_RDWR);
     i = fork();
     if (i<0) {
 	perror("Unable to fork.\n");
@@ -262,30 +248,12 @@ void exec_detached(char *program, char *attribute) {
 	exit(1);
     }
     if (i) {
-//	close(devnull_fd);
-//	close(tty_fd);
 	return;
     }
-
-     /* change tty */
-//    ioctl(tty_fd, TIOCNOTTY, 0);
-//    close(tty_fd);
-//    umask(022); /* set a default for dumb programs */
-//    dup2(devnull_fd,0); /* stdin */
-//    dup2(devnull_fd,1); /* stdout */
-//    dup2(devnull_fd,2); /* stderr */
-//     /* now close all extra fds */
-//    for (i=getdtablesize()-1; i>=3; --i) close(i);
 
     execlp(program,program,attribute,NULL);
     exit(0);
 }
-
-/*
-struct _trackparam {
-    double 
-};
-*/
 
 int main(int argc,char **argv)
 {
