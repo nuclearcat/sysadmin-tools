@@ -1,7 +1,7 @@
 VERSION=0.1
 
-DEBUG=-g
-CFLAGS=-DVERSION=\"${VERSION}\" -Wall $(DEBUG) -O3
+DEBUG=-s -Os -ffunction-sections -fdata-sections
+CFLAGS=-DVERSION=\"${VERSION}\" -Wall $(DEBUG)
 LDFLAGS=$(DEBUG)
 
 OBJS=ipslad.o
