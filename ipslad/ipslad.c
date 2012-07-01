@@ -152,7 +152,8 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 	}
 
 	if ((hp = gethostbyname(dsthost)) == NULL) {
-	    if ((ip->ip_dst.s_addr = inet_addr(dsthost)) == -1) {
+	    ip->ip_dst.s_addr = inet_addr(dsthost);
+	    if (ip->ip_dst.s_addr == INADDR_NONE) {
 		fprintf(stderr, "%s: unknown host\n", dsthost);
 	    }
 	} else {
@@ -418,7 +419,6 @@ int main(int argc,char **argv)
     if (tlatencyhi < tlatencylo)
 	tlatencyhi = tlatencylo;
 
-
     if (tlosshi < tlosslo)
 	tlosshi = tlosslo;
 
@@ -429,7 +429,6 @@ int main(int argc,char **argv)
 
     snprintf(buffer,MAXBUF-1,"%s/SLAd starting",name);
     syslog(LOG_USER|LOG_ALERT,"%s",buffer);
-
     snprintf(buffer,MAXBUF-1,"%s/i%d sz%d spn%d rptper%d tloss%f/%f tlat%d/%d tjit%d/%d\n",name,interval,size,span,period,tlosslo,tlosshi,tlatencylo,tlatencyhi,tjitterlo,tjitterhi);
     syslog(LOG_USER|LOG_ALERT,"%s",buffer);
 
@@ -494,7 +493,6 @@ int main(int argc,char **argv)
 		rpt_sumlatency = 0.0;
 		rpt_sumloss = 0.0;
 		rpt_sumjitter = 0.0;
-
 	    }
 	}
 
