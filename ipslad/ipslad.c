@@ -236,10 +236,7 @@ static int ping4(char *dsthost, long maxdelay, char *bindaddr,int size)
 }
 
 void exec_detached(char *program, char *attribute) {
-    int tty_fd = -1;
-    int devnull_fd = -1;
     int i;
-    pid_t pid;
 
     i = fork();
     if (i<0) {
@@ -255,24 +252,20 @@ void exec_detached(char *program, char *attribute) {
     exit(0);
 }
 
+/* Make intertia (when loss detriggered - configurable
+ */
 int main(int argc,char **argv)
 {
   int interval = 500, size = 100, period = 60, span = 200, inertia = 30;
-
   int tlatencyhi = 200, tlatencylo = 150, tjitterlo = 0, tjitterhi = 0;
-  int toutagebad = 0, toutagegood = 0;
   double tlosshi = 1.0, tlosslo = 0.5;
-
-  char *dsthost=NULL,*bindaddr=NULL,*name=NULL,*onfail=NULL,*onrestore=NULL,*tmp;
-  int len,c,prevc,i;
+  char *dsthost=NULL, *bindaddr=NULL, *name=NULL, *onfail=NULL, *onrestore=NULL,*tmp;
+  int len,c,prevc;
   int cntlatency = 0,cntloss = 0,cntjitter = 0, operational = 0;
   double sumlatency = 0.0,sumloss = 0.0,sumjitter = 0.0;
-
   int rpt_cntlatency = 0,rpt_cntloss = 0,rpt_cntjitter = 0;
   double rpt_sumlatency = 0.0, rpt_sumloss = 0.0, rpt_sumjitter = 0.0;
-
   time_t triglatency = 0, trigloss = 0, trigjitter = 0;
-  struct timeval tv;
   time_t oldtime = time(NULL);
   char buffer[MAXBUF];
   struct sigaction sa;
@@ -284,151 +277,125 @@ int main(int argc,char **argv)
         perror("sigaction");
         exit(1);
   }
+  while (1) {
+    static struct option long_options[] =
+    {
+	/* These options don't set a flag.
+	We distinguish them by their indices. */
+	{"dst",  required_argument, 0, 'd'},
+	{"name",  required_argument, 0, 'n'},
+	{"interval",  required_argument, 0, 'i'},
+	{"size",  required_argument, 0, 's'},
+	{"bind",  required_argument, 0, 'b'},
+	{"maxlost",  required_argument, 0, 'm'},
+	{"span",  required_argument, 0, '1'},
+	{"rperiod",  required_argument, 0, '2'},
+	{"triggerloss",  required_argument, 0, '3'},
+	{"triggerlatency",  required_argument, 0, '4'},
+	{"triggerjitter",  required_argument, 0, '5'},
+	{"onfail",  required_argument, 0, 'f'},
+	{"onrestore",  required_argument, 0, 'r'},
+	{"verbose",  no_argument, 0, 'v'},
+	{"help",  no_argument, 0, 'h'},
+	{0, 0, 0, 0}
+    };
+    /* getopt_long stores the option index here. */
+    int option_index = 0;
+    c = getopt_long (argc, argv, "d:b:p:g:f:r:h:b:n:l", long_options, &option_index);
+    /* Detect the end of the options. */
+    if (c == -1)
+	break;
+    switch (c) {
+	case 'i':
+	    interval = atoi(optarg);
+	    break;
 
+	case 's':
+	    size = atoi(optarg);
+	    break;
+	case 'v':
+	    verbose = 1;
+	    break;
+	case '1':
+	    span = atoi(optarg);
+	    break;
+	case '2':
+	    period = atoi(optarg);
+	    break;
+	case '3':
+	    tmp = strchr(optarg,'/');
+	    tlosshi = tlosslo = atof(optarg);
+	    if (tmp)
+		tlosshi = atof(++tmp);
+	    break;
+	case '4':
+	    tmp = strchr(optarg,'/');
+	    tlatencylo = tlatencyhi = atoi(optarg);
+	    if (tmp)
+		tlatencyhi = atof(++tmp);
+	    break;
+	case '5':
+	    tmp = strchr(optarg,'/');
+	    tjitterlo = tjitterhi = atoi(optarg);
+	    if (tmp)
+		tjitterhi = atof(++tmp);
+	    break;
 
-  while (1)
-         {
+	case 'd':
+	    len = strlen(optarg) + 1;
+	    dsthost = malloc(len);
+	    strncpy(dsthost,optarg,len);
+	    break;
 
-	    static struct option long_options[] =
-             {
-               /* These options don't set a flag.
-                  We distinguish them by their indices. */
-               {"dst",  required_argument, 0, 'd'},
-               {"name",  required_argument, 0, 'n'},
-               {"interval",  required_argument, 0, 'i'},
-               {"size",  required_argument, 0, 's'},
-               {"bind",  required_argument, 0, 'b'},
-               {"maxlost",  required_argument, 0, 'm'},
-               {"span",  required_argument, 0, '1'},
-               {"rperiod",  required_argument, 0, '2'},
-               {"triggerloss",  required_argument, 0, '3'},
-               {"triggerlatency",  required_argument, 0, '4'},
-               {"triggerjitter",  required_argument, 0, '5'},
-               {"triggeroutage",  required_argument, 0, '6'},
-               {"onfail",  required_argument, 0, 'f'},
-               {"onrestore",  required_argument, 0, 'r'},
-               {"verbose",  no_argument, 0, 'v'},
-               {"help",  no_argument, 0, 'h'},
-               {0, 0, 0, 0}
-             };
-           /* getopt_long stores the option index here. */
-	    int option_index = 0;
-     
-	    c = getopt_long (argc, argv, "d:b:p:g:f:r:h:b:n:l", long_options, &option_index);
-          /* Detect the end of the options. */
-           if (c == -1)
-             break;
-     
-           switch (c)
-             {
-             case 'i':
-		interval = atoi(optarg);
-               break;
+	case 'b':
+	    len = strlen(optarg) + 1;
+	    bindaddr = malloc(len);
+	    strncpy(bindaddr,optarg,len);
+	    break;
 
-             case 's':
-		size = atoi(optarg);
-               break;
+	case 'n':
+	    len = strlen(optarg) + 1;
+	    name = malloc(len);
+	    strncpy(name,optarg,len);
+	    break;
 
-             case 'v':
-		verbose = 1;
-               break;
+	case 'f':
+	    len = strlen(optarg) + 1;
+	    onfail = malloc(len);
+	    strncpy(onfail,optarg,len);
+	break;
 
-             case '1':
-		span = atoi(optarg);
-               break;
+        case 'r':
+	    len = strlen(optarg) + 1;
+	    onrestore = malloc(len);
+	    strncpy(onrestore,optarg,len);
+	    break;
 
-             case '2':
-		period = atoi(optarg);
-               break;
+        case 'h':
+	    printf("Available options:\n");
+	    printf("--dst 			- Destination host\n");
+	    printf("--name 			- Name of measurement\n");
+	    printf("--interval 		- Interval between pings (500ms)\n");
+	    printf("--size 			- Size of packet (100)\n");
+	    printf("--bind 			- Bind address\n");
+	    printf("--maxlost 		- Max packets lost in row to trigger alert\n");
+	    printf("--span	 		- Statistical span of data to analyse (200)\n");
+	    printf("--rperiod 		- Report period (each 60 seconds)\n");
+	    printf("--onfail 		- Script on failure\n");
+	    printf("--onrestore 		- Script on restore\n");
+	    printf("--verbose 		- Verbose\n");
+	    printf("Thresholds recovery/alert, set to 0 to off\n");
+	    printf("--triggerloss 		- Packetloss %% (0.5/1.0)\n");
+	    printf("--triggerlatency	- Latency msec (150/200)\n");
+	    printf("--triggerjitter		- Jitter msec (0/0)\n");
+	    /* getopt_long already printed an error message. */
+	    exit(1);
+	    break;
 
-             case '3':
-		tmp = strchr(optarg,'/');
-		tlosshi = tlosslo = atof(optarg);
-		if (tmp)
-		    tlosshi = atof(++tmp);
-               break;
-
-             case '4':
-		tmp = strchr(optarg,'/');
-		tlatencylo = tlatencyhi = atoi(optarg);
-		if (tmp)
-		    tlatencyhi = atof(++tmp);
-
-               break;
-
-             case '5':
-		tmp = strchr(optarg,'/');
-		tjitterlo = tjitterhi = atoi(optarg);
-		if (tmp)
-		    tjitterhi = atof(++tmp);
-
-               break;
-
-             case '6':
-		tmp = strchr(optarg,'/');
-		toutagebad = toutagegood = atoi(optarg);
-		if (tmp)
-		    toutagegood = atof(++tmp);
-               break;
-
-
-             case 'd':
-		len = strlen(optarg) + 1;
-		dsthost = malloc(len);
-		strncpy(dsthost,optarg,len);
-               break;
-
-             case 'b':
-		len = strlen(optarg) + 1;
-		bindaddr = malloc(len);
-		strncpy(bindaddr,optarg,len);
-               break;
-
-             case 'n':
-		len = strlen(optarg) + 1;
-		name = malloc(len);
-		strncpy(name,optarg,len);
-               break;
-
-             case 'f':
-		len = strlen(optarg) + 1;
-		onfail = malloc(len);
-		strncpy(onfail,optarg,len);
-               break;
-
-             case 'r':
-		len = strlen(optarg) + 1;
-		onrestore = malloc(len);
-		strncpy(onrestore,optarg,len);
-               break;
-
-     
-             case 'h':
-		printf("Available options:\n");
-		printf("--dst 			- Destination host\n");
-		printf("--name 			- Name of measurement\n");
-		printf("--interval 		- Interval between pings (500ms)\n");
-		printf("--size 			- Size of packet (100)\n");
-		printf("--bind 			- Bind address\n");
-		printf("--maxlost 		- Max packets lost in row to trigger alert\n");
-		printf("--span	 		- Statistical span of data to analyse (200)\n");
-		printf("--rperiod 		- Report period (each 60 seconds)\n");
-		printf("--onfail 		- Script on failure\n");
-		printf("--onrestore 		- Script on restore\n");
-		printf("--verbose 		- Verbose\n");
-		printf("Thresholds recovery/alert, set to 0 to off\n");
-		printf("--triggerloss 		- Packetloss %% (0.5/1.0)\n");
-		printf("--triggerlatency	- Latency msec (150/200)\n");
-		printf("--triggerjitter		- Jitter msec (0/0)\n");
-//		printf("--triggeroutage		- Detect outage, missed packets/packets ok (0/0)\n");
-               /* getopt_long already printed an error message. */
-		exit(1);
-               break;
-     
-             default:
-               abort ();
-             }
-         }                            
+	default:
+	    abort ();
+	}
+    }
 
     if (dsthost == NULL) {
 	printf("Please specify destination\n");
