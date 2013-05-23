@@ -4,14 +4,15 @@ DEBUG=-s
 CFLAGS=-DVERSION=\"${VERSION}\" -Wall $(DEBUG) -Os -D_FILE_OFFSET_BITS=64
 LDFLAGS=$(DEBUG)
 
-OBJS=udp2file.o
+OBJS=sock2file.o lib.o
 
-all: udp2file
+all: sock2file
 
-udp2file: $(OBJS)
+sock2file: $(OBJS)
 
-install: udp2file
-	cp udp2file /usr/sbin
+install: sock2file
+	sstrip sock2file
+	cp sock2file /usr/sbin
 
 clean:
-	rm -f $(OBJS) udp2file core a.out gmon.out
+	rm -f $(OBJS) sock2file core a.out gmon.out
