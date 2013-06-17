@@ -85,22 +85,27 @@ int main(int argc,char **argv)
        switch (c) {
 	case 'p':
 	    port = atoi(optarg);
+	    printf("Port set to %s\n", optarg);
 	    break;
 
 	case 'x':
 	    if (!strcmp(optarg, "tcp"))
 		proto = 1;
+	    printf("Proto set to %s\n", optarg);
             break;
 
 	case 'd':
 	    directory = optarg;
+	    printf("Directory set to %s\n", optarg);
 	    break;
 
 	case 'b':
+	    printf("Bind set to %s\n", optarg);
 	    str2ip(optarg, &ipaddr);
 	    break;
 
 	case 's':
+	    printf("Source IP restriction set to %s\n", optarg);
 	    str2ip(optarg, &srcipaddr);
 	    break;
 
@@ -113,7 +118,7 @@ int main(int argc,char **argv)
     }
 
 
-   if (!port || !directory || !ipaddr) {
+   if (!port || !directory) {
     printf("%s --port N  --directory /some/path [--sourceonly x.x.x.x] [--bind x.x.x.x] [--proto (tcp|udp)]\n", argv[0]);
     exit(0);
    }
@@ -129,7 +134,7 @@ int main(int argc,char **argv)
 
    memset(&srv_addr, 0x0, sizeof(srv_addr));
    srv_addr.sin_family = AF_INET;
-   if (argc == 4)
+   if (ipaddr)
     srv_addr.sin_addr.s_addr = ipaddr;
    else
     srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -167,12 +172,19 @@ int main(int argc,char **argv)
 		FD_SET(fd[1], &set);
 	    select(max + 1, &set, NULL, NULL, NULL);
 	    if (FD_ISSET(fd[0], &set)) {
+		len = sizeof(cli_addr);
+		int fd_tmp = accept(fd[0], (struct sockaddr *) &cli_addr, &len);
 		/* New connection */
-		if (fd[1])
-		    close(fd[1]);
-		fd[1] = accept(fd[0], (struct sockaddr *) &cli_addr, &len);
-		max = fd[1];
-		num_fd = 2;
+		if (srcipaddr && cli_addr.sin_addr.s_addr != srcipaddr) {
+		    printf("src %d res %d\n", cli_addr.sin_addr.s_addr, srcipaddr);
+		    close(fd_tmp);
+		} else {
+		    if (fd[1])
+			close(fd[1]);
+		    fd[1] = fd_tmp;
+		    max = fd[1];
+		    num_fd = 2;
+		}
 	    }
 	    if (fd[1] && FD_ISSET(fd[1], &set)) {
 		n = read(fd[1], message, sizeof(message)-1);
