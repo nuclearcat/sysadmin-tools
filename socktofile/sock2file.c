@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <sys/select.h>
 #include "lib.h"
 
@@ -57,31 +58,65 @@ int main(int argc,char **argv)
    struct sockaddr_in srv_addr, cli_addr;
    socklen_t len, n, n2;
    char message[65536];
-   uint16_t port;
-   uint32_t ipaddr;
-   char *str_ptr = NULL;
+   uint16_t port = 0;
+   uint32_t ipaddr = 0, srcipaddr = 0;
+   char *directory = NULL;
+   int c;
+//   int digit_optind = 0;
 
-   if (argc < 3) {
-    printf("%s port[:proto] dir [bindip]\n", argv[0]);
+    while (1) {
+//        int this_option_optind = optind ? optind : 1;
+        int option_index = 0;
+        static struct option long_options[] = {
+            {"port",		required_argument, 0, 'p' },
+            {"proto",		required_argument, 0, 'x' },
+            {"directory",	required_argument, 0, 'd' },
+            {"bind", 		required_argument, 0, 'b' },
+            {"sourceonly",	required_argument, 0, 's' },
+            {"help",		required_argument, 0, 'h' },
+            {0,         0,                 0,  0 }
+        };
+
+	c = getopt_long(argc, argv, "p:x:d:b:s:h",
+                 long_options, &option_index);
+	if (c == -1)
+	    break;
+
+       switch (c) {
+	case 'p':
+	    port = atoi(optarg);
+	    break;
+
+	case 'x':
+	    if (!strcmp(optarg, "tcp"))
+		proto = 1;
+            break;
+
+	case 'd':
+	    directory = optarg;
+	    break;
+
+	case 'b':
+	    str2ip(optarg, &ipaddr);
+	    break;
+
+	case 's':
+	    str2ip(optarg, &srcipaddr);
+	    break;
+
+	case 'h':
+	    break;
+
+	default:
+	    printf("?? getopt returned character code 0%o ??\n", c);
+	}
+    }
+
+
+   if (!port || !directory || !ipaddr) {
+    printf("%s --port N  --directory /some/path [--sourceonly x.x.x.x] [--bind x.x.x.x] [--proto (tcp|udp)]\n", argv[0]);
     exit(0);
    }
-
-   port = atoi(argv[1]);
-
-   if (argc == 4)
-	str2ip(argv[3], &ipaddr);
-
-   if (!port) {
-    printf("Invalid port\n");
-    exit(0);
-   }
-   str_ptr = strchr(argv[1], ':');
-   if (str_ptr && strlen(str_ptr) >= 4) {
-	str_ptr++;
-   }
-
-   if (str_ptr && !strcmp(str_ptr, "tcp"))
-     proto = 1;
 
    if (proto)
     fd[0] = socket(AF_INET, SOCK_STREAM, 0);
@@ -109,7 +144,7 @@ int main(int argc,char **argv)
     }
    }
 
-   chdir(argv[2]);
+   chdir(directory);
    fd_new_date(&fd_f, &sequence);
 
    daemon(1,1);
