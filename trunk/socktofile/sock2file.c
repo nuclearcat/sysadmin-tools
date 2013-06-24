@@ -142,6 +142,10 @@ int main(int argc,char **argv)
    bind(fd[0], (struct sockaddr *)&srv_addr, sizeof(srv_addr));
 
    if (proto) {
+    /* Enable address reuse */
+    on = 1;
+    ret = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
+    /* Listen */
     ret = listen(fd[0], 1000);
     if (ret == -1) {
 	perror("listen");

@@ -69,7 +69,7 @@ void fd_new_date(int *fd, int *seq) {
 	    /* TODO: create flag that this file ok to be compressed or processed */
 	}
 	seq_process(seq);
-	sprintf(formatted, "%%Y-%%m-%%d_%05d_%%H:%%M:%%S.log", *seq);
+	sprintf(formatted, "%%Y-%%m-%%d_%06d_%%H:%%M:%%S.log", *seq);
 	strftime(filename, sizeof(filename) - 1, formatted, tm);
 	*fd = open(filename, O_RDWR|O_CREAT|O_APPEND, 0600);
 	if (*fd == -1) {
