@@ -54,18 +54,16 @@ void str2ip(const char* ip, uint32_t *retval) {
 
 int main(int argc,char **argv)
 {
-   int fd[2], fd_f = 0, proto = 0, num_fd = 0, max, sequence = 0, ret;
+   int fd[2], fd_f = 0, proto = 0, num_fd = 0, max, sequence = 0, ret, c;
+   int newline = 0;
    struct sockaddr_in srv_addr, cli_addr;
    socklen_t len, n, n2;
    char message[65536];
    uint16_t port = 0;
    uint32_t ipaddr = 0, srcipaddr = 0;
    char *directory = NULL;
-   int c;
-//   int digit_optind = 0;
 
     while (1) {
-//        int this_option_optind = optind ? optind : 1;
         int option_index = 0;
         static struct option long_options[] = {
             {"port",		required_argument, 0, 'p' },
@@ -73,11 +71,12 @@ int main(int argc,char **argv)
             {"directory",	required_argument, 0, 'd' },
             {"bind", 		required_argument, 0, 'b' },
             {"sourceonly",	required_argument, 0, 's' },
-            {"help",		required_argument, 0, 'h' },
+	    {"newline",		no_argument, 	   0, 'n' },
+            {"help",		no_argument, 	   0, 'h' },
             {0,         0,                 0,  0 }
         };
 
-	c = getopt_long(argc, argv, "p:x:d:b:s:h",
+	c = getopt_long(argc, argv, "p:x:d:b:s:nh",
                  long_options, &option_index);
 	if (c == -1)
 	    break;
@@ -86,6 +85,9 @@ int main(int argc,char **argv)
 	case 'p':
 	    port = atoi(optarg);
 	    printf("Port set to %s\n", optarg);
+	    break;
+	case 'n':
+	    newline = 1;
 	    break;
 
 	case 'x':
@@ -119,7 +121,7 @@ int main(int argc,char **argv)
 
 
    if (!port || !directory) {
-    printf("%s --port N  --directory /some/path [--sourceonly x.x.x.x] [--bind x.x.x.x] [--proto (tcp|udp)]\n", argv[0]);
+    printf("%s --port N  --directory /some/path [--sourceonly x.x.x.x] [--bind x.x.x.x] [--proto (tcp|udp)] [--newline]\n", argv[0]);
     exit(0);
    }
 
@@ -143,8 +145,8 @@ int main(int argc,char **argv)
 
    if (proto) {
     /* Enable address reuse */
-    on = 1;
-    ret = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
+    int on = 1;
+    ret = setsockopt( fd[0], SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
     /* Listen */
     ret = listen(fd[0], 1000);
     if (ret == -1) {
@@ -167,6 +169,8 @@ int main(int argc,char **argv)
 	    n2 = write(fd_f, message, n);
 	    if (n2 != n)
 		perror("write()");
+	    if (newline)
+		write(fd_f, "\n", 1);
 	} else {
 	    /* Handling tcp */
 	    fd_set set;
