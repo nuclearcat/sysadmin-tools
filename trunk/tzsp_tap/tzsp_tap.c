@@ -65,14 +65,6 @@ int open_tun(char *name)
         return 1;
     }
 
-/*
-    if (ioctl(tun_fd, TUNGETIFF, (void *)&ifr) < 0) {
-        perror("ioctlg-1");
-        close(fd);
-        return 1;
-    }
-*/
-
     ifr.ifr_flags |= IFF_UP;
     ifr.ifr_flags |= IFF_RUNNING;
 
@@ -119,17 +111,9 @@ int main(int argc,char **argv)
     tun_fd = open_tun(argv[1]);
 
     while(1) {
-//	int fd;
 	len = recv(sock, buffer, 4096, 0);
 	if (len > 5) {
 	    write(tun_fd, buffer+5, len-5);
-//	    fd = open("pkt", O_CREAT|O_RDWR, S_IRWXU);
-//	    write(fd, buffer+5, len-5);
-//	    close(fd);
-//	    exit(0);
 	}
-//	tv.tv_sec = 0;
-//	tv.tv_usec = 100;
-//	select(0 , NULL, NULL, NULL, &tv);
     }
 }
