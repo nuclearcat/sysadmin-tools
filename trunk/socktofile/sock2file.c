@@ -54,10 +54,10 @@ void str2ip(const char* ip, uint32_t *retval) {
 
 int main(int argc,char **argv)
 {
-   int fd[2], fd_f = 0, proto = 0, num_fd = 0, max, sequence = 0, ret, c;
+   int fd[2], fd_f = 0, proto = 0, num_fd = 0, max, sequence = 0, ret, ret2, c;
    int newline = 0;
    struct sockaddr_in srv_addr, cli_addr;
-   socklen_t len, n, n2;
+   socklen_t len;
    char message[65536];
    uint16_t port = 0;
    uint32_t ipaddr = 0, srcipaddr = 0;
@@ -165,9 +165,9 @@ int main(int argc,char **argv)
 	
 	if (!proto) {
 	    len = sizeof(cli_addr);
-	    n = recvfrom(fd[0], message, sizeof(message)-1, 0, (struct sockaddr *)&cli_addr, &len);
-	    n2 = write(fd_f, message, n);
-	    if (n2 != n)
+	    ret = recvfrom(fd[0], message, sizeof(message)-1, 0, (struct sockaddr *)&cli_addr, &len);
+	    ret2 = write(fd_f, message, ret);
+	    if (ret2 != ret)
 		perror("write()");
 	    if (newline)
 		write(fd_f, "\n", 1);
@@ -195,8 +195,9 @@ int main(int argc,char **argv)
 		}
 	    }
 	    if (fd[1] && FD_ISSET(fd[1], &set)) {
-		n = read(fd[1], message, sizeof(message)-1);
-		if (n <= 0) {
+		ret = read(fd[1], message, sizeof(message)-1);
+		/* On error */
+		if (ret <= 0) {
 			/* We close also old file, data maybe corrupted, so new will be clean */
 			close(fd[1]);
 			close(fd_f);
@@ -206,8 +207,8 @@ int main(int argc,char **argv)
 			max = fd[0];
 		} else {
 			/* Writing data */
-			n2 = write(fd_f, message, n);
-			if (n2 != n)
+			ret2 = write(fd_f, message, ret);
+			if (ret2 != ret)
 			    perror("write()");
 		}
 	    }
