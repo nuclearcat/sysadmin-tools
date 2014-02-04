@@ -116,6 +116,7 @@ int main(int argc,char **argv)
 
 	default:
 	    printf("?? getopt returned character code 0%o ??\n", c);
+	    exit(0);
 	}
     }
 
@@ -141,7 +142,10 @@ int main(int argc,char **argv)
    else
     srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
    srv_addr.sin_port = htons(port);
-   bind(fd[0], (struct sockaddr *)&srv_addr, sizeof(srv_addr));
+   if (bind(fd[0], (struct sockaddr *)&srv_addr, sizeof(srv_addr)) == -1) {
+	perror("bind()");
+	exit(0);
+   }
 
    if (proto) {
     /* Enable address reuse */
