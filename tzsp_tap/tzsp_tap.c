@@ -109,7 +109,10 @@ int main(int argc,char **argv)
     }
 
     tun_fd = open_tun(argv[1]);
-
+    if (tun_fd == -1) {
+	perror("tun opening");
+	exit(1);
+    }
     while(1) {
 	len = recv(sock, buffer, 4096, 0);
 	if (len > 5) {
