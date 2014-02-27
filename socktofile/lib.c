@@ -40,6 +40,9 @@ static void seq_process (int *sequence) {
    if (ret != -1) {
 	if (read(ret, buffer, sizeof(buffer) - 1) > 0) {
 	    *sequence = atoi(buffer);
+	} else {
+	    /* Reset sequence to zero, seems empty file */
+	    *sequence = 0;
 	}
 	(*sequence)++;
 	lseek(ret, 0, SEEK_SET);
