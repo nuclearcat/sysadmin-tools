@@ -1,0 +1,2 @@
+Here is collection of Linux (probably more portable than only linux) sysadmin tools i made.
+toom - Too many. If even occur too much (for example squid restart flapping), for example more than 3 times for last 60 minutes, you can trigger some event, toom with right parameters will return different exit code, when event occuring too much. State of events saved in file, no daemon kept in system.
