@@ -25,6 +25,9 @@
 #define PPPOE_SIZE              22                                                                                                                                                                        
 #define HASHSIZE		0xFFFFF /* Must be power of 2 */
 
+int sortby;
+int pairs_total = 0;
+struct timeval tv1;
 
 struct ippairs {
     u_int32_t addr;
@@ -71,8 +74,6 @@ static int find_ip_eth(char* buf)
 }
 
 void add_ip(struct iphdr *ip,unsigned int bytes,int dir) {
-//    int iphash;
-//    struct ippairs *ptr;
     const u_int32_t ipaddr = ((u_int32_t*)ip)[offset[dir]];
     struct ippairs *found = NULL;
 
@@ -82,6 +83,7 @@ void add_ip(struct iphdr *ip,unsigned int bytes,int dir) {
 	found->packets++;
 	found->bytes+=bytes;
     } else {
+	pairs_total++;
 	found = malloc(sizeof(struct ippairs));
 	memset(found,0x0,sizeof(struct ippairs));
 	found->packets++;
@@ -91,47 +93,6 @@ void add_ip(struct iphdr *ip,unsigned int bytes,int dir) {
     }
     
 }
-
-
-
-
-/*
- * workhorse function, we will be modifying this function 
- */
-void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,const u_char* packet)
-{
-    struct iphdr *ip; /* The IP header */
-//    struct tcphdr *tcp; /* The IP header */
-    static int offset;
-//    static int iphash;
-    int dir = (int) *args;
-
-
-    packetstotal++;
-    bytes += pkthdr->caplen;
-
-    offset = find_ip_eth((char*)packet);
-    if (offset == -1)
-	return;
-
-    if (pkthdr->caplen < offset+sizeof(struct iphdr))
-	return;
-
-    ip = (struct iphdr*)(packet+offset);
-
-    add_ip(ip,pkthdr->caplen,dir);
-}
-
-long timevaldiff(struct timeval *starttime, struct timeval *finishtime)
-{
-  long msec;
-
-  msec =  (finishtime->tv_sec-starttime->tv_sec)*1000;
-  msec += (finishtime->tv_usec-starttime->tv_usec)/1000;
-
-  return msec;
-}
-
 
 int compare_bytes (const void * a, const void * b)
 {
@@ -153,27 +114,102 @@ int compare_packets (const void * a, const void * b)
     return ( px->packets - py->packets );
 }
 
+long timevaldiff(struct timeval *starttime, struct timeval *finishtime)
+{
+  long msec;
+
+  msec =  (finishtime->tv_sec-starttime->tv_sec)*1000;
+  msec += (finishtime->tv_usec-starttime->tv_usec)/1000;
+
+  return msec;
+}
+
+void show_stat (void) {
+    struct ippairs *found = NULL;
+    long timediff;
+    struct timeval tv2;
+    struct in_addr s_addr;
+    char ipbuf[16];
+    char *ntoaptr;
+    int len, i;
+
+    gettimeofday(&tv2, NULL);
+
+    timediff = timevaldiff(&tv1, &tv2);
+
+    printf("\033c");
+
+    if (sortby == 0)
+	HASH_SORT(pairs, compare_bytes);
+    else if (sortby == 1)
+	HASH_SORT(pairs, compare_packets);
+
+    i = 0;
+    for(found=pairs; found != NULL; found=found->hh.next) {
+	i++;
+	memset(ipbuf,0x20,16);
+	ipbuf[15] = 0x0;
+	s_addr.s_addr = (in_addr_t)found->addr;
+	ntoaptr = inet_ntoa(s_addr);
+	if (!ntoaptr) {
+	    perror("inet_ntoa()");
+	    exit(1);
+	}
+	len = strlen(ntoaptr);
+	strncpy(ipbuf,ntoaptr,len);
+	// Show last 10
+	if (i > (pairs_total - 30))
+	    printf("%s %db %dp avg %db %llu%%b %llu%%p %llu Kbit/s\n",ipbuf,found->bytes,found->packets,(found->bytes/found->packets),found->bytes*100/bytes,found->packets*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
+    }
+    printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
+    printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
+}
+
+/*
+ * workhorse function, we will be modifying this function 
+ */
+void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,const u_char* packet)
+{
+    struct iphdr *ip; /* The IP header */
+//    struct tcphdr *tcp; /* The IP header */
+    static int offset;
+//    static int iphash;
+    int dir = (int) *args;
+
+    packetstotal++;
+    if (((double)(packetstotal) / (double)packets) == (double)(packetstotal/packets))
+	show_stat();
+    bytes += pkthdr->caplen;
+
+    offset = find_ip_eth((char*)packet);
+    if (offset == -1)
+	return;
+
+    if (pkthdr->caplen < offset+sizeof(struct iphdr))
+	return;
+
+    ip = (struct iphdr*)(packet+offset);
+
+    add_ip(ip,pkthdr->caplen,dir);
+}
+
+
+
+
 
 int main(int argc,char **argv)
 { 
-//    char *dev; 
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t* descr;
     struct bpf_program fp;      /* hold compiled program     */
     bpf_u_int32 maskp;          /* subnet mask               */
     bpf_u_int32 netp;           /* ip                        */
     int args = 0;
-    int linktype,len;
-    long timediff;
-    struct timeval tv1, tv2;
-    struct in_addr s_addr;
-    char ipbuf[16];
-    char *ntoaptr;
-    struct ippairs *found = NULL;
-    int sortby = 0;
+    int linktype;
+
 
     /* Options must be passed in as a string because I am lazy */
-    if(argc < 5){ 
+    if(argc < 5){
         fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src) [p|b]\n",argv[0]);
 	fprintf(stdout,"p - sort by packets, b - by bytes (default)\n");
         return 0;
@@ -225,32 +261,8 @@ int main(int argc,char **argv)
 
     gettimeofday(&tv1,NULL);
     /* ... and loop */ 
-    pcap_loop(descr,packets,my_callback,(void *)&args);
-    gettimeofday(&tv2,NULL);
+    pcap_loop(descr, -1, my_callback, (void *)&args);
 
-    timediff = timevaldiff(&tv1, &tv2);
-
-    printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
-    printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
-
-    if (sortby == 0)
-	HASH_SORT(pairs, compare_bytes);
-    else if (sortby == 1)
-	HASH_SORT(pairs, compare_packets);
-
-    for(found=pairs; found != NULL; found=found->hh.next) {
-	memset(ipbuf,0x20,16);
-	ipbuf[15] = 0x0;
-	s_addr.s_addr = (in_addr_t)found->addr;
-	ntoaptr = inet_ntoa(s_addr);
-	if (!ntoaptr) {
-	    perror("inet_ntoa()");
-	    exit(1);
-	}
-	len = strlen(ntoaptr);
-	strncpy(ipbuf,ntoaptr,len);
-	printf("%s %db %dp avg %db %llu%%b %llu%%p %llu Kbit/s\n",ipbuf,found->bytes,found->packets,(found->bytes/found->packets),found->bytes*100/bytes,found->packets*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
-    }
 
     return 0;
 }
