@@ -1,0 +1,4 @@
+#!/bin/sh
+gcc -Wall -o latencytest latencytest.c -static
+i686-w64-mingw32-gcc -Wall -o latencytest.exe latencytest.c -lws2_32
+
