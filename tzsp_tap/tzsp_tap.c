@@ -82,7 +82,6 @@ int open_tun(char *name)
 int main(int argc,char **argv)
 {
         int sock, len, tun_fd;
-        struct timeval tv;
         char buffer[4096];
         struct sockaddr_in si_me;
         int debug = 0;
