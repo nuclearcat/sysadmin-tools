@@ -109,7 +109,6 @@ void add_ip(struct iphdr *ip,unsigned int bytes,struct report *r) {
         memset(found,0x0,sizeof(struct ippairs));
         found->packets++;
         found->bytes+=bytes;
-        //ip &= mask_val;
         found->addr = ipaddr;
         HASH_ADD_INT( pairs, addr, found );
     }
@@ -181,7 +180,7 @@ void show_stat (void) {
         strncpy(ipbuf,ntoaptr,len);
         // Show last 10
         if (i > (pairs_total - 30))
-            printf("%s %db %dp avg %db %llu%%b %llu%%p %llu Kbit/s\n",ipbuf,found->bytes,found->packets,(found->bytes/found->packets),found->bytes*100/bytes,found->packets*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
+            printf("%s %db %dp avg %db %llu%%b %llu%%p %lu Kbit/s\n",ipbuf,found->bytes,found->packets,(found->bytes/found->packets),found->bytes*100/bytes,found->packets*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
     }
     printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
     printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
@@ -196,7 +195,7 @@ void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,const u_char* pac
     //    struct tcphdr *tcp; /* The IP header */
     static int offset;
     //    static int iphash;
-    struct report *s_report = args;
+    struct report *s_report = (struct report*)args;
 
     packetstotal++;
     if (((double)(packetstotal) / (double)packets) == (double)(packetstotal/packets))
@@ -228,7 +227,7 @@ int main(int argc,char **argv)
 
     /* Options must be passed in as a string because I am lazy */
     if(argc < 5) {
-        fprintf(stdout,"iptop 2-beta1\n",argv[0]);
+        fprintf(stdout,"iptop 2-beta1\n");
         fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src) [p|b]\n",argv[0]);
         fprintf(stdout,"p - sort by packets, b - by bytes (default)\n");
         return 0;
