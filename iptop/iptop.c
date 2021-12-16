@@ -26,10 +26,18 @@
 #define PPPOE_SIZE              22
 #define HASHSIZE		0xFFFFF /* Must be power of 2 */
 
+#define REPORT_DST              0
+#define REPORT_SRC              1
+
 int sortby;
 int pairs_total = 0;
 struct timeval tv1;
-int mask_val = 0xFFFFFFFF;
+//int mask_val = 0xFFFFFFFF;
+
+struct report {
+  int direction;
+  int mask;
+};
 
 struct ippairs {
     u_int32_t addr;
@@ -75,9 +83,18 @@ static int find_ip_eth(char* buf)
     return offset;
 }
 
-void add_ip(struct iphdr *ip,unsigned int bytes,int dir) {
-    const u_int32_t ipaddr = ((u_int32_t*)ip)[offset[dir]];
+uint32_t fillbits (int mask) {
+  uint32_t bits = 0;
+  for (int i=0;i<mask;i++) {
+    bits |= 1<<i;
+  }
+  return bits;
+}
+
+void add_ip(struct iphdr *ip,unsigned int bytes,struct report *r) {
+    const u_int32_t ipaddr = ((u_int32_t*)ip)[offset[r->direction]];
     struct ippairs *found = NULL;
+    uint32_t mask_val = fillbits(r->mask);
 
     HASH_FIND_INT( pairs, &ipaddr, found );
 
@@ -177,7 +194,7 @@ void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,const u_char* pac
     //    struct tcphdr *tcp; /* The IP header */
     static int offset;
     //    static int iphash;
-    int dir = (int) *args;
+    struct report *s_report = args;
 
     packetstotal++;
     if (((double)(packetstotal) / (double)packets) == (double)(packetstotal/packets))
@@ -193,7 +210,7 @@ void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,const u_char* pac
 
     ip = (struct iphdr*)(packet+offset);
 
-    add_ip(ip,pkthdr->caplen,dir);
+    add_ip(ip,pkthdr->caplen,s_report);
 }
 
 int main(int argc,char **argv)
@@ -203,19 +220,20 @@ int main(int argc,char **argv)
     struct bpf_program fp;      /* hold compiled program     */
     bpf_u_int32 maskp;          /* subnet mask               */
     bpf_u_int32 netp;           /* ip                        */
-    int args = 0;
+    struct report s_report;
     int linktype;
 
 
     /* Options must be passed in as a string because I am lazy */
     if(argc < 5) {
-        fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src) [p|b|N]\n",argv[0]);
+        fprintf(stdout,"iptop 2-beta1\n",argv[0]);
+        fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src) [p|b]\n",argv[0]);
         fprintf(stdout,"p - sort by packets, b - by bytes (default)\n");
         return 0;
     }
 
     if (argc == 6) {
-        double val_user;
+        //double val_user;
         switch(argv[5][0]) {
         case 'p':
             sortby = 1;
@@ -224,8 +242,9 @@ int main(int argc,char **argv)
             sortby = 2;
             break;
         default:
-            val_user = atof(argv[5]);
-            mask_val = (int)pow(2.0, val_user);
+            break;
+            //val_user = atof(argv[5]);
+            //mask_val = (int)pow(2.0, val_user);
         }
     }
 
@@ -236,9 +255,30 @@ int main(int argc,char **argv)
 
     packets = atoi(argv[3]);
     packetstrigger = packets/5;
+    s_report.direction = REPORT_DST;
+    s_report.mask = 32;
     if (!strcmp(argv[4],"src")) {
-        args = 1;
+        s_report.direction = REPORT_SRC;
     }
+    if (!strcmp(argv[4],"src24")) {
+        s_report.direction = REPORT_SRC;
+        s_report.mask = 24;
+    }
+    if (!strcmp(argv[4],"dst24")) {
+        s_report.direction = REPORT_DST;
+        s_report.mask = 24;
+    }
+
+    
+    /*
+    if (!strcmp(argv[4],"src24")) {
+        report_type = REPORT_SRC24;
+    }
+    if (!strcmp(argv[4],"dst24")) {
+        report_type = REPORT_DST24;
+    }
+    */
+
 
     /* ask pcap for the network address and mask of the device */
     pcap_lookupnet(argv[1],&netp,&maskp,errbuf);
@@ -283,7 +323,7 @@ int main(int argc,char **argv)
 
     gettimeofday(&tv1,NULL);
     /* ... and loop */
-    pcap_loop(descr, -1, my_callback, (void *)&args);
+    pcap_loop(descr, -1, my_callback, (void *)&s_report);
 
 
     return 0;
