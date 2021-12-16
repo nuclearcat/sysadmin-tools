@@ -92,10 +92,12 @@ uint32_t fillbits (int mask) {
 }
 
 void add_ip(struct iphdr *ip,unsigned int bytes,struct report *r) {
-    const u_int32_t ipaddr = ((u_int32_t*)ip)[offset[r->direction]];
+    u_int32_t ipaddr = ((u_int32_t*)ip)[offset[r->direction]];
     struct ippairs *found = NULL;
     uint32_t mask_val = fillbits(r->mask);
 
+    ipaddr &= mask_val;
+    
     HASH_FIND_INT( pairs, &ipaddr, found );
 
     if (found) {
@@ -108,7 +110,7 @@ void add_ip(struct iphdr *ip,unsigned int bytes,struct report *r) {
         found->packets++;
         found->bytes+=bytes;
         //ip &= mask_val;
-        found->addr = ipaddr & mask_val;
+        found->addr = ipaddr;
         HASH_ADD_INT( pairs, addr, found );
     }
 
