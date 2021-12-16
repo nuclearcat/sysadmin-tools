@@ -2,7 +2,7 @@ VERSION=0.1
 
 DEBUG=-g # -pg
 CFLAGS=-DVERSION=\"${VERSION}\" -Wall $(DEBUG) -O0
-LDFLAGS=$(DEBUG) -lrt -lpcap
+LDFLAGS=$(DEBUG) -lrt -lpcap -lm
 
 OBJS=iptop.o
 
