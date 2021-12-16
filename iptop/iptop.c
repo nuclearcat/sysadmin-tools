@@ -228,7 +228,7 @@ int main(int argc,char **argv)
     /* Options must be passed in as a string because I am lazy */
     if(argc < 5) {
         fprintf(stdout,"iptop 2-beta1\n");
-        fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src) [p|b]\n",argv[0]);
+        fprintf(stdout,"Usage: %s interface \"pcap filter\" packets (dst|src|dst24|src24) [p|b]\n",argv[0]);
         fprintf(stdout,"p - sort by packets, b - by bytes (default)\n");
         return 0;
     }
