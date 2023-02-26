@@ -50,6 +50,7 @@ struct ippairs {
 struct ippairs *pairs = NULL;
 int packets, packetstrigger;
 unsigned long long packetstotal,bytes;
+int report_count = 0;
 
 const int offset[2] = {offsetof(struct iphdr,daddr)/sizeof(u_int32_t), offsetof(struct iphdr,saddr)/sizeof(u_int32_t) };
 
@@ -179,11 +180,15 @@ void show_stat (void) {
         len = strlen(ntoaptr);
         strncpy(ipbuf,ntoaptr,len);
         // Show last 10
-        if (i > (pairs_total - 30))
+        if (i > (pairs_total - 100))
             printf("%s %db %dp avg %db %llu%%b %llu%%p %lu Kbit/s\n",ipbuf,found->bytes,found->packets,(found->bytes/found->packets),found->bytes*100/bytes,found->packets*100/packetstotal,((uint64_t)found->bytes*8/(uint64_t)timediff));
     }
     printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
     printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
+    // if report_count not zero, then exit
+    if (report_count) {
+        exit(0);
+    }
 }
 
 /*
@@ -252,7 +257,8 @@ int main(int argc,char **argv)
     if (argc == 6 && argv[5][0] == 'b') {
         sortby = 2;
     }
-
+    // retrieve from environment variable REPORT_COUNT and set to report_count
+    report_count = atoi(getenv("REPORT_COUNT"));
 
     packets = atoi(argv[3]);
     packetstrigger = packets/5;
