@@ -159,7 +159,9 @@ void show_stat (void) {
 
     timediff = timevaldiff(&tv1, &tv2);
 
-    printf("\033c");
+    // Don't clear screen if we are in "report_count" mode
+    if (report_count)
+        printf("\033c");
 
     if (sortby == 0 || sortby == 2)
         HASH_SORT(pairs, compare_bytes);
@@ -186,9 +188,8 @@ void show_stat (void) {
     printf("Average packet size %llu (with ethernet header, max avg sz 1514)\n",bytes/packetstotal);
     printf("Time %ld, total bytes %lld, total speed %lld Kbit/s\n",timediff,bytes,bytes*8*1000/timediff/1024);
     // if report_count not zero, then exit
-    if (report_count) {
+    if (report_count)
         exit(0);
-    }
 }
 
 /*
@@ -258,6 +259,7 @@ int main(int argc,char **argv)
         sortby = 2;
     }
     // retrieve from environment variable REPORT_COUNT and set to report_count
+    // feature "under development", for now i just did to get results quickly
     report_count = atoi(getenv("REPORT_COUNT"));
 
     packets = atoi(argv[3]);
@@ -267,6 +269,8 @@ int main(int argc,char **argv)
     if (!strcmp(argv[4],"src")) {
         s_report.direction = REPORT_SRC;
     }
+
+    // mask by /24
     if (!strcmp(argv[4],"src24")) {
         s_report.direction = REPORT_SRC;
         s_report.mask = 24;
