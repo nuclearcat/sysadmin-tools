@@ -44,7 +44,7 @@ struct ippairs
 {
     u_int32_t addr;
     struct ippairs *next;
-    uint32_t bytes;
+    uint64_t bytes;
     uint32_t packets;
     UT_hash_handle hh;
 };
