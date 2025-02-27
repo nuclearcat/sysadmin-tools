@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use std::env;
-use crossbeam::channel::{unbounded, Receiver};
 use lazy_static::lazy_static;
 use pcap::{Capture, Packet};
 
@@ -37,7 +36,7 @@ fn packet_callback(interface_index: usize, packet: Packet) {
 }
 
 fn show_traffic(old_time: &mut f64, args_len: usize) {
-    let now = Utc::now().timestamp_nanos() as f64 / BILLION;
+    let now = Utc::now().timestamp_nanos_opt().unwrap() as f64 / BILLION;
     let elapsed = now - *old_time;
 
     if elapsed >= 1.0 {
@@ -114,12 +113,11 @@ fn main() {
         );
         return;
     }
-    let timer: u64;
-    if args.len() == 4 {
-        timer = args[3].parse().expect("Invalid timer value");
+    let timer: u64 = if args.len() == 4 {
+        args[3].parse().expect("Invalid timer value")
     } else {
-        timer = args[5].parse().expect("Invalid timer value");
-    }
+        args[5].parse().expect("Invalid timer value")
+    };
 
     if timer == 0 {
         println!("Wrong timer!");
@@ -141,7 +139,7 @@ fn main() {
         });
     }
 
-    let mut old_time = Utc::now().timestamp_nanos() as f64 / BILLION;
+    let mut old_time = Utc::now().timestamp_nanos_opt().unwrap() as f64 / BILLION;
 
     loop {
         thread::sleep(Duration::from_secs(timer));
