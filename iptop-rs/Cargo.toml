@@ -1,0 +1,11 @@
+[package]
+name = "iptop-rs"
+version = "0.1.0"
+edition = "2024"
+authors = ["Denys Fedoryshchenko"]
+description = "Network traffic monitoring tool in Rust"
+
+[dependencies]
+pcap = "1.1.0"
+etherparse = "0.13.0"
+chrono = "0.4.31"
